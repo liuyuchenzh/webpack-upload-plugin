@@ -46,7 +46,7 @@ const cdn = require("some-cdn-package")
 module.exports = {
   plugins: [
       new WebpackCdnPlugin(cdn, {
-          src: path.resolve("./"), // where your original html file lies (under develop)
+          src: path.resolve("./"), // where your original html file lies (with reference to local js/css files)
           dist: path.resolve("./dist") // where the final html lies (ready for production)
       })
   ]
