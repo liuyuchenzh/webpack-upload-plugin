@@ -4,7 +4,8 @@ The main aim is to provide a tool to upload js/css files used in html to cdn, an
 
 ## Notice
 This plugin does not provide a service as uploading to cdn.<br>
-In fact, it actually depends on such service.
+In fact, it actually depends on such service.<br>
+This plugin is for webpack 3.
 
 ## Dependency
 `webpack-cdn-plugin` relies on the existence a `cdn` object with an `upload` method described as below.
