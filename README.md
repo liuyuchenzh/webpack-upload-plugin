@@ -44,11 +44,11 @@ const cdn = {
 ## Usage
 In webpack.config.js
 ```js
-const WebpackCdnPlugin = require("webpack-cdn-plugin")
+const WebpackUploadPlugin = require("webpack-upload-plugin")
 const cdn = require("some-cdn-package")
 module.exports = {
   plugins: [
-      new WebpackCdnPlugin(cdn, {
+      new WebpackUploadPlugin(cdn, {
           src: path.resolve("./"), // where your original html file lies (with reference to local js/css files)
           dist: path.resolve("./dist") // where the final html lies (ready for production)
       })
