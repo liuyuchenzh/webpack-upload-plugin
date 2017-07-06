@@ -146,7 +146,7 @@ function isDir (input) {
 }
 
 /**
- * webpack cdn plugin
+ * webpack upload plugin
  * early version need more work
  * @param {{upload: Promise}} cdn
  * custom cdn module, need to have an upload API, return a Promise with structured response
@@ -155,12 +155,12 @@ function isDir (input) {
  * provide information about what the source html directory and compiled html directory
  * @constructor
  */
-function CdnPlugin (cdn, option = DEFAULT_HTML_ROOT) {
+function UploadPlugin (cdn, option = DEFAULT_HTML_ROOT) {
   this.cdn = cdn
   this.option = Object.assign({}, DEFAULT_HTML_ROOT, option)
 }
 
-CdnPlugin.prototype.apply = function (compiler) {
+UploadPlugin.prototype.apply = function (compiler) {
   const self = this
   compiler.plugin('done', function (stats) {
     const hash = stats.compilation.hash
