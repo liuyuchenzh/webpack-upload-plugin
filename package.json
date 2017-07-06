@@ -1,0 +1,22 @@
+{
+  "name": "webpack-upload-plugin",
+  "version": "0.1.0",
+  "description": "webpack-upload-plugin, webpack plugin",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/liuyuchenzh/webpack-upload-plugin.git"
+  },
+  "keywords": [
+    "webpack-upload-plugin"
+  ],
+  "author": "Yuchen Liu",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/liuyuchenzh/webpack-upload-plugin/issues"
+  },
+  "homepage": "https://github.com/liuyuchenzh/webpack-upload-plugin#readme"
+}
