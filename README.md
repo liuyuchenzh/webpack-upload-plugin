@@ -2,6 +2,11 @@
 This is a plugin for [webpack](https://github.com/webpack/webpack).<br>
 The main aim is to provide a tool to upload js/css files used in html to cdn, and then replace the reference with the corresponding cdn url.<br>
 
+## Install
+```
+npm install webpack-upload-plugin
+```
+
 ## Notice
 This plugin does not provide a service as uploading to cdn.<br>
 In fact, it actually depends on such service.<br>
