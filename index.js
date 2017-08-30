@@ -193,4 +193,4 @@ UploadPlugin.prototype.apply = function (compiler) {
   })
 }
 
-module.exports = CdnPlugin
+module.exports = UploadPlugin
