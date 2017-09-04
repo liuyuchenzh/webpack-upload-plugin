@@ -31,7 +31,7 @@ If typescript syntax is unfamiliar, here is another description in vanilla javas
 ```js
 /**
 * @param {string[]} localPath: list of paths of local files
-* @return Promise: resolved Promise with structure like {localPath: cdnUrl}
+* @return Promise<cdnRes>: resolved Promise with structure like {localPath: cdnUrl}
 */
 function upload(localPath) {
   // code
