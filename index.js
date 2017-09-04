@@ -31,43 +31,6 @@ function isFilterOutDir (input) {
 }
 
 /**
- * knowing the source html content
- * now we want to replace the inline path of local compiled sources to the corresponding cdn path
- * and write new html content to dist directory
- * mapFromSrcToDis aim to get the relationship between source html path and dist html path
- * and return the dist path based on the src path
- * @param {string} srcPath
- * @param {string} srcRoot
- * @param {string} distRoot
- * @return {string}
- */
-function mapFromSrcToDist (srcPath, srcRoot, distRoot) {
-  const _srcRoot = removeHeadPoint(normalize(srcRoot))
-  const _distRoot = removeHeadPoint(normalize(distRoot))
-  const _srcPath = normalize(srcPath)
-  if (_srcRoot === '') {
-    return _srcPath
-      .split(DEFAULT_SEP)
-      .reverse()
-      .map((part, i) => {
-        return i === 0 ? _distRoot + DEFAULT_SEP + part : part
-      })
-      .reverse()
-      .join(DEFAULT_SEP)
-  } else {
-    return _srcPath.replace(_srcRoot, _distRoot)
-  }
-}
-
-/**
- * remove the starting '.' from path
- * @param path
- */
-function removeHeadPoint (path) {
-  return path.replace(/^\.*\/?/, '')
-}
-
-/**
  *
  * @param {string} localPath
  * @return {RegExp}
@@ -85,31 +48,28 @@ function generateLocalPathReg (localPath) {
       }
     })
     .join(`\\${DEFAULT_SEP}?`)
-  return new RegExp(regStr)
+  return new RegExp(regStr, 'g')
 }
 
 /**
  * find file usage
  * 1. make sure the range: srcPath
  * 2. provide inline path to search and to replace with: localCdnPair
- * 3. provide basic information about src and dist path of the project: rootInfo
  * @param {string} srcPath
  * @return {function}
  */
-function findUsageIn (srcPath) {
+function simpleReplace (srcPath) {
   const srcFile = fs.readFileSync(srcPath, 'utf-8')
   return function savePair (...localCdnPair) {
-    return function generateCompiledFile (rootInfo) {
-      localCdnPair
-        .map(file => {
-          const localPath = normalize(file[0])
-          const cdnPath = file[1]
-          const localPathReg = generateLocalPathReg(localPath)
-          const distFile = srcFile.replace(localPathReg, match => cdnPath)
-          const _distPath = mapFromSrcToDist(srcPath, rootInfo.src, rootInfo.dist)
-          fs.writeFileSync(_distPath, distFile)
-        })
-    }
+    const ret = localCdnPair
+      .reduce((last, file) => {
+        const localPath = normalize(file[0])
+        const cdnPath = file[1]
+        const localPathReg = generateLocalPathReg(localPath)
+        last = last.replace(localPathReg, match => cdnPath)
+        return last
+      }, srcFile)
+    fs.writeFileSync(srcPath, ret)
   }
 }
 
@@ -145,6 +105,19 @@ function isDir (input) {
   return fs.statSync(input).isDirectory()
 }
 
+function isType (type) {
+  return function enterFile (file) {
+    return isFile(file) && path.extname(file) === '.' + type
+  }
+}
+
+const isJpg = isType('jpg')
+const isPng = isType('png')
+const isGif = isType('gif')
+const isWebp = isType('webp')
+const isCss = isType('css')
+const isJs = isType('js')
+
 /**
  * webpack upload plugin
  * early version need more work
@@ -162,8 +135,57 @@ function UploadPlugin (cdn, option = DEFAULT_HTML_ROOT) {
 
 UploadPlugin.prototype.apply = function (compiler) {
   const self = this
-  compiler.plugin('done', function (stats) {
+  compiler.plugin('done', async function (stats) {
     const hash = stats.compilation.hash
+    // all assets including js/css/img
+    const assets = stats.compilation.assets
+    const assetsNames = Object.keys(assets)
+    // classify assets
+    const desireAssets = assetsNames.reduce((last, name) => {
+      const assetInfo = assets[name]
+      const location = assetInfo.existsAt
+      if (isGif(location) || isPng(location) || isJpg(location) || isWebp(location)) {
+        last.img[name] = assetInfo
+      } else if (isCss(location)) {
+        last.css[name] = assetInfo
+      } else if (isJs(location)) {
+        last.js[name] = assetInfo
+      }
+      return last
+    }, {
+      img: {},
+      css: {},
+      js: {}
+    })
+
+    const {
+      img,
+      css
+    } = desireAssets
+
+    // make assets object to array with local path
+    function makeArr (input) {
+      return Object.keys(input)
+        .map(name => {
+          const info = input[name]
+          return info.existsAt
+        })
+    }
+
+    const imgArr = makeArr(img)
+
+    // upload img
+    // find img in css
+    // replace css
+    // now css ref to img with cdn path
+    const imgPairs = await self.cdn.upload(imgArr)
+    Object.keys(css)
+      .forEach(name => {
+        const location = css[name].existsAt
+        simpleReplace(location)(...Object.entries(imgPairs))
+      })
+
+    // more sophisticated method to deal with js
     const outputOptions = stats.compilation.outputOptions
     const entries = stats.compilation.entries
     const outputFileName = outputOptions.filename
@@ -177,18 +199,17 @@ UploadPlugin.prototype.apply = function (compiler) {
           chunkhash: chunk.renderedHash,
           hash
         }
-        return join(outputFilePath, outputFileName.replace(/\[(.*?)\]/g, (match, key) => data[key]))
+        return join(outputFilePath, outputFileName.replace(/\[(.*?)]/g, (match, key) => data[key]))
       })
+    // concat js + css
+    const adjustedFiles = [...outputFiles, ...makeArr(css)]
     const findFileInRoot = gatherFileIn(self.option.src)
     const htmlFiles = findFileInRoot('html')
-    self.cdn
-      .upload(outputFiles)
-      .then(res => {
-        const localCdnPair = Object.entries(res)
-        htmlFiles
-          .forEach(htmlFile => {
-            findUsageIn(htmlFile)(...localCdnPair)(self.option)
-          })
+    const jsCssPair = await self.cdn.upload(adjustedFiles)
+    const localCdnPair = Object.entries(jsCssPair)
+    htmlFiles
+      .forEach(htmlFile => {
+        simpleReplace(htmlFile)(...localCdnPair)
       })
   })
 }
