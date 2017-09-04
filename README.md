@@ -49,8 +49,7 @@ const cdn = require("some-cdn-package")
 module.exports = {
   plugins: [
       new WebpackUploadPlugin(cdn, {
-          src: path.resolve("./"), // where your original html file lies (with reference to local js/css files)
-          dist: path.resolve("./dist") // where the final html lies (ready for production)
+          src: path.resolve("./"), // where your html file would emit to (with reference to local js/css files)
       })
   ]
 }
