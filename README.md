@@ -49,11 +49,15 @@ const cdn = require("some-cdn-package")
 module.exports = {
   plugins: [
       new WebpackUploadPlugin(cdn, {
-          src: path.resolve("./"), // where your html file would emit to (with reference to local js/css files)
+          src: path.resolve("./src"), // where your html file would emit to (with reference to local js/css files)
+          dist: path.resolve('./dist'), // only use this when there is a need to separate origin outputs with cdn ones
+          urlCb(input) { return input }, // give the power to play with cdn url before emit
+          resolve: ['html'] // typeof file needed to match; default to ['html']
       })
   ]
 }
 ```
+*notice: src and dist work best with absolute path!* <br>
 Viola! That's all : )
 
 ## License

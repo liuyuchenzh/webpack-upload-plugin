@@ -1,10 +1,14 @@
 const fs = require('fs')
+const fse = require('fs-extra')
 const path = require('path')
+const name = require('./package.json').name
 const DEFAULT_SEP = '/'
 const FILTER_OUT_DIR = ['.idea', '.vscode', '.gitignore', 'node_modules']
-const DEFAULT_HTML_ROOT = {
+const DEFAULT_OPTION = {
   src: resolve('src'),
-  dist: resolve('dist')
+  dist: resolve('src'),
+  resolve: ['html'],
+  urlCb (input) { return input}
 }
 
 // 1. gather html file
@@ -31,7 +35,7 @@ function isFilterOutDir (input) {
 }
 
 /**
- *
+ * produce RegExp to match local path
  * @param {string} localPath
  * @return {RegExp}
  */
@@ -56,11 +60,12 @@ function generateLocalPathReg (localPath) {
  * 1. make sure the range: srcPath
  * 2. provide inline path to search and to replace with: localCdnPair
  * @param {string} srcPath
+ * @param {string} distPath
  * @return {function}
  */
-function simpleReplace (srcPath) {
+function simpleReplace (srcPath, distPath = srcPath) {
   const srcFile = fs.readFileSync(srcPath, 'utf-8')
-  return function savePair (...localCdnPair) {
+  return function savePair (localCdnPair) {
     const ret = localCdnPair
       .reduce((last, file) => {
         const localPath = normalize(file[0])
@@ -69,7 +74,8 @@ function simpleReplace (srcPath) {
         last = last.replace(localPathReg, match => cdnPath)
         return last
       }, srcFile)
-    fs.writeFileSync(srcPath, ret)
+    fse.ensureFileSync(distPath)
+    fs.writeFileSync(distPath, ret)
   }
 }
 
@@ -111,6 +117,26 @@ function isType (type) {
   }
 }
 
+/**
+ * give the power of playing with cdn url
+ * @param {string[][]} entries
+ * @param {function} cb
+ * @returns {[string, string][]}
+ */
+function processCdnUrl (entries, cb) {
+  if (typeof cb !== 'function') return console.error(`[${name}]: urlCb is not function`)
+  return entries.map(pair => {
+    // pair[1] should be cdn url
+    pair[1] = cb(pair[1])
+    if (typeof pair[1] !== 'string') console.error(`[${name}]: the return result of urlCb is not string`)
+    return pair
+  })
+}
+
+function mapSrcToDist (srcFilePath, srcRoot, distRoot) {
+  return srcFilePath.replace(srcRoot, distRoot)
+}
+
 const isJpg = isType('jpg')
 const isPng = isType('png')
 const isGif = isType('gif')
@@ -128,13 +154,21 @@ const isJs = isType('js')
  * provide information about what the source html directory and compiled html directory
  * @constructor
  */
-function UploadPlugin (cdn, option = DEFAULT_HTML_ROOT) {
+function UploadPlugin (cdn, option = DEFAULT_OPTION) {
   this.cdn = cdn
-  this.option = Object.assign({}, DEFAULT_HTML_ROOT, option)
+  this.option = Object.assign({}, DEFAULT_OPTION, option)
 }
 
 UploadPlugin.prototype.apply = function (compiler) {
   const self = this
+  // extra treatment for cdnUrl
+  const urlCb = this.option.urlCb
+  // could process other type of files rather than limited to html
+  const resolveList = this.option.resolve
+  // get absolute path of src and dist directory
+  const srcRoot = resolve(this.option.src)
+  const distRoot = resolve(this.option.dist)
+
   compiler.plugin('done', async function (stats) {
     const hash = stats.compilation.hash
     // all assets including js/css/img
@@ -182,7 +216,7 @@ UploadPlugin.prototype.apply = function (compiler) {
     Object.keys(css)
       .forEach(name => {
         const location = css[name].existsAt
-        simpleReplace(location)(...Object.entries(imgPairs))
+        simpleReplace(location)(processCdnUrl([...Object.entries(imgPairs)], urlCb))
       })
 
     // more sophisticated method to deal with js
@@ -204,12 +238,15 @@ UploadPlugin.prototype.apply = function (compiler) {
     // concat js + css
     const adjustedFiles = [...outputFiles, ...makeArr(css)]
     const findFileInRoot = gatherFileIn(self.option.src)
-    const htmlFiles = findFileInRoot('html')
+    const tplFiles = resolveList.reduce((last, type) => {
+      last = last.concat(findFileInRoot(type))
+      return last
+    }, [])
     const jsCssPair = await self.cdn.upload(adjustedFiles)
     const localCdnPair = Object.entries(jsCssPair)
-    htmlFiles
-      .forEach(htmlFile => {
-        simpleReplace(htmlFile)(...localCdnPair)
+    tplFiles
+      .forEach(filePath => {
+        simpleReplace(filePath, mapSrcToDist(filePath, srcRoot, distRoot))(processCdnUrl([...localCdnPair], urlCb))
       })
   })
 }
