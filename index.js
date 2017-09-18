@@ -194,7 +194,8 @@ UploadPlugin.prototype.apply = function (compiler) {
 
     const {
       img,
-      css
+      css,
+      js
     } = desireAssets
 
     // make assets object to array with local path
@@ -218,25 +219,8 @@ UploadPlugin.prototype.apply = function (compiler) {
         const location = css[name].existsAt
         simpleReplace(location)(processCdnUrl([...Object.entries(imgPairs)], urlCb))
       })
-
-    // more sophisticated method to deal with js
-    const outputOptions = stats.compilation.outputOptions
-    const entries = stats.compilation.entries
-    const outputFileName = outputOptions.filename
-    const outputFilePath = normalize(outputOptions.path)
-    const outputFiles = entries
-      .map(entry => {
-        const chunk = Array.from(entry._chunks)[0]
-        const data = {
-          id: chunk.id,
-          name: chunk.name,
-          chunkhash: chunk.renderedHash,
-          hash
-        }
-        return join(outputFilePath, outputFileName.replace(/\[(.*?)]/g, (match, key) => data[key]))
-      })
     // concat js + css
-    const adjustedFiles = [...outputFiles, ...makeArr(css)]
+    const adjustedFiles = [...makeArr(js), ...makeArr(css)]
     const findFileInRoot = gatherFileIn(self.option.src)
     const tplFiles = resolveList.reduce((last, type) => {
       last = last.concat(findFileInRoot(type))
