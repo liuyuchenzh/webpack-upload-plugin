@@ -9,7 +9,7 @@ const DEFAULT_OPTION = {
   src: resolve('src'),
   dist: resolve('src'),
   resolve: ['html'],
-  urlCb (input) {
+  urlCb(input) {
     return input
   }
 }
@@ -20,20 +20,20 @@ const DEFAULT_OPTION = {
 // 4. find the usage of production file in html file
 // 5. if found, replace
 
-function resolve (...input) {
+function resolve(...input) {
   return path.resolve(...input)
 }
 
-function normalize (input, sep = DEFAULT_SEP) {
+function normalize(input, sep = DEFAULT_SEP) {
   const _input = path.normalize(input)
   return _input.split(path.sep).join(sep)
 }
 
-function join (...inputs) {
+function join(...inputs) {
   return normalize(path.join(...inputs))
 }
 
-function isFilterOutDir (input) {
+function isFilterOutDir(input) {
   return FILTER_OUT_DIR.includes(input)
 }
 
@@ -42,7 +42,7 @@ function isFilterOutDir (input) {
  * @param {string} localPath
  * @return {RegExp}
  */
-function generateLocalPathReg (localPath) {
+function generateLocalPathReg(localPath) {
   const pathArr = localPath.split(DEFAULT_SEP)
   const len = pathArr.length
   const regStr = pathArr
@@ -65,9 +65,9 @@ function generateLocalPathReg (localPath) {
  * @param {string} distPath
  * @return {function}
  */
-function simpleReplace (srcPath, distPath = srcPath) {
+function simpleReplace(srcPath, distPath = srcPath) {
   const srcFile = fs.readFileSync(srcPath, 'utf-8')
-  return function savePair (localCdnPair) {
+  return function savePair(localCdnPair) {
     const ret = localCdnPair.reduce((last, file) => {
       const localPath = normalize(file[0])
       const cdnPath = file[1]
@@ -87,8 +87,8 @@ function simpleReplace (srcPath, distPath = srcPath) {
  * @param {string} src: directory to search
  * @return {function}
  */
-function gatherFileIn (src) {
-  return function gatherFileType (type) {
+function gatherFileIn(src) {
+  return function gatherFileType(type) {
     return fs.readdirSync(src).reduce((last, file) => {
       const filePath = resolve(src, file)
       if (isFile(filePath)) {
@@ -103,27 +103,27 @@ function gatherFileIn (src) {
   }
 }
 
-function isFile (input) {
+function isFile(input) {
   return fs.statSync(input).isFile()
 }
 
-function isDir (input) {
+function isDir(input) {
   return fs.statSync(input).isDirectory()
 }
 
-function isType (type) {
-  return function enterFile (file) {
+function isType(type) {
+  return function enterFile(file) {
     return isFile(file) && path.extname(file) === '.' + type
   }
 }
 
 /**
  * give the power of playing with cdn url
- * @param {*[] | Iterator<*>} entries
+ * @param {*[]} entries
  * @param {function} cb
- * @returns {[string, string][]}
+ * @returns {[string, string][] | void}
  */
-function processCdnUrl (entries, cb) {
+function processCdnUrl(entries, cb) {
   if (typeof cb !== 'function')
     return console.error(`[${name}]: urlCb is not function`)
   return entries.map(pair => {
@@ -135,7 +135,7 @@ function processCdnUrl (entries, cb) {
   })
 }
 
-function mapSrcToDist (srcFilePath, srcRoot, distRoot) {
+function mapSrcToDist(srcFilePath, srcRoot, distRoot) {
   return srcFilePath.replace(srcRoot, distRoot)
 }
 
@@ -151,7 +151,7 @@ const isTtf = isType('ttf')
 const isOtf = isType('otf')
 const isSvg = isType('svg')
 
-function isFont (path) {
+function isFont(path) {
   return (
     isWoff(path) || isWoff2(path) || isTtf(path) || isOtf(path) || isSvg(path)
   )
@@ -162,7 +162,7 @@ function isFont (path) {
  * @param {*[]} chunks
  * @param {string} chunkFileName
  */
-function gatherChunks (chunks, chunkFileName) {
+function gatherChunks(chunks, chunkFileName) {
   return chunks.reduce((last, chunk) => {
     const id = chunk.id
     const name = chunk.name
@@ -180,7 +180,7 @@ function gatherChunks (chunks, chunkFileName) {
  * @param {string[]} files
  * @param {{id: string}} chunkCdnMap
  */
-function updateScriptSrc (files, chunkCdnMap) {
+function updateScriptSrc(files, chunkCdnMap) {
   files.forEach(file => {
     const content = fs.readFileSync(file, 'utf-8')
     if (SCRIPT_SRC_MATCH.test(content)) {
@@ -198,11 +198,15 @@ function updateScriptSrc (files, chunkCdnMap) {
  * @param {string} chunkAbsPath
  * @param {{id: string}} chunkMap
  */
-function getIdForChunk (chunkAbsPath, chunkMap) {
+function getIdForChunk(chunkAbsPath, chunkMap) {
   return Object.keys(chunkMap).findIndex(
     key => chunkAbsPath.indexOf(chunkMap[key]) > -1
   )
 }
+
+/**
+ * @typedef {function(string): string} urlCb
+ */
 
 /**
  * webpack upload plugin
@@ -210,11 +214,15 @@ function getIdForChunk (chunkAbsPath, chunkMap) {
  * @param {{upload: Promise}} cdn
  * custom cdn module, need to have an upload API, return a Promise with structured response
  * like {localPath: cdnPath}
- * @param {{src: string, dist: string}} option
+ * @param {object} option
+ * @param {string} option.src
+ * @param {string=} option.dist
+ * @param {urlCb=} option.urlCb
+ * @param {function=} option.onFinish
  * provide information about what the source html directory and compiled html directory
  * @constructor
  */
-function UploadPlugin (cdn, option = DEFAULT_OPTION) {
+function UploadPlugin(cdn, option = DEFAULT_OPTION) {
   this.cdn = cdn
   this.option = Object.assign({}, DEFAULT_OPTION, option)
 }
@@ -228,6 +236,8 @@ UploadPlugin.prototype.apply = function (compiler) {
   // get absolute path of src and dist directory
   const srcRoot = resolve(this.option.src)
   const distRoot = resolve(this.option.dist)
+  // onFinish callback
+  const onFinish = this.option.onFinish
 
   compiler.plugin('done', async function (stats) {
     const chunks = stats.compilation.chunks
@@ -259,8 +269,7 @@ UploadPlugin.prototype.apply = function (compiler) {
           last.font[name] = assetInfo
         }
         return last
-      },
-      {
+      }, {
         img: {},
         css: {},
         js: {},
@@ -268,10 +277,15 @@ UploadPlugin.prototype.apply = function (compiler) {
       }
     )
 
-    const {img, css, js, font} = desireAssets
+    const {
+      img,
+      css,
+      js,
+      font
+    } = desireAssets
 
     // make assets object to array with local path
-    function makeArr (input) {
+    function makeArr(input) {
       return Object.keys(input).map(name => {
         const info = input[name]
         return info.existsAt
@@ -289,13 +303,15 @@ UploadPlugin.prototype.apply = function (compiler) {
     )
 
     // find out which js files are chunk chunk, which are not
-    const {notChunkJsArr, chunkArrWAbs} = jsArr.reduce(
+    const {
+      notChunkJsArr,
+      chunkArrWAbs
+    } = jsArr.reduce(
       (last, js) => {
         const isChunk = chunkArr.some(chunk => js.indexOf(chunk) > -1)
         isChunk ? last.chunkArrWAbs.push(js) : last.notChunkJsArr.push(js)
         return last
-      },
-      {
+      }, {
         notChunkJsArr: [],
         chunkArrWAbs: []
       }
@@ -345,6 +361,8 @@ UploadPlugin.prototype.apply = function (compiler) {
         processCdnUrl(localCdnPair, urlCb)
       )
     })
+    // run onFinish if it is a valid function
+    onFinish && typeof onFinish === 'function' && onFinish()
   })
 }
 
