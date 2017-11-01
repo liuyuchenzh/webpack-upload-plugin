@@ -17,7 +17,7 @@ const DEFAULT_OPTION = {
 
 /**
  * log information
- * @param {string} msg
+ * @param {*} msg
  */
 function log(msg) {
   console.log(`[${name}]: ${msg}`)
@@ -336,7 +336,7 @@ UploadPlugin.prototype.apply = function(compiler) {
     // now css ref to img/font with cdn path
     // meanwhile upload chunk files to save time
     log('upload img and font...')
-    logLocal && log(JSON.stringify([...imgArr, ...fontArr]))
+    logLocal && log([...imgArr, ...fontArr])
     const [imgAndFontPairs, chunkPairs] = await Promise.all([
       self.cdn.upload([...imgArr, ...fontArr]),
       self.cdn.upload(chunkArrWAbs)
@@ -371,7 +371,7 @@ UploadPlugin.prototype.apply = function(compiler) {
     }, [])
 
     log('upload js and css...')
-    logLocal && log(JSON.stringify(adjustedFiles))
+    logLocal && log(adjustedFiles)
     const jsCssPair = await self.cdn.upload(adjustedFiles)
     const localCdnPair = Object.entries(jsCssPair)
     tplFiles.forEach(filePath => {
