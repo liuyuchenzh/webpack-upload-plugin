@@ -63,13 +63,15 @@ module.exports = {
           dist: path.resolve('./dist'), // only use this when there is a need to separate origin outputs with cdn ones
           urlCb(input) { return input }, // give the power to play with cdn url before emit
           resolve: ['html'], // typeof file needed to match; default to ['html']
-          onFinish() {} // anything you want to run after the uploading and replacing process
+          onFinish() {}, // anything you want to run after the uploading and replacing process
+          logLocalFiles: false // whether to print all uploading file names during the process
       })
   ]
 }
 ```
 
-*notice: src and dist work best with absolute path!* <br>
+> notice: src and dist work best with absolute path!
+
 Viola! That's all : )
 
 ## License

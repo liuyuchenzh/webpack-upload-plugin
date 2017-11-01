@@ -11,7 +11,24 @@ const DEFAULT_OPTION = {
   resolve: ['html'],
   urlCb(input) {
     return input
-  }
+  },
+  logLocalFiles: false
+}
+
+/**
+ * log information
+ * @param {string} msg
+ */
+function log(msg) {
+  console.log(`[${name}]: ${msg}`)
+}
+
+/**
+ * log error
+ * @param msg
+ */
+function logErr(msg) {
+  console.error(`[${name}]: ${msg}`)
 }
 
 // 1. gather html file
@@ -124,13 +141,12 @@ function isType(type) {
  * @returns {[string, string][] | void}
  */
 function processCdnUrl(entries, cb) {
-  if (typeof cb !== 'function')
-    return console.error(`[${name}]: urlCb is not function`)
+  if (typeof cb !== 'function') return logErr(`urlCb is not function`)
   return entries.map(pair => {
     // pair[1] should be cdn url
     pair[1] = cb(pair[1])
     if (typeof pair[1] !== 'string')
-      console.error(`[${name}]: the return result of urlCb is not string`)
+      logErr(`the return result of urlCb is not string`)
     return pair
   })
 }
@@ -219,6 +235,7 @@ function getIdForChunk(chunkAbsPath, chunkMap) {
  * @param {string=} option.dist
  * @param {urlCb=} option.urlCb
  * @param {function=} option.onFinish
+ * @param {boolean=} option.logLocalFiles
  * provide information about what the source html directory and compiled html directory
  * @constructor
  */
@@ -227,7 +244,7 @@ function UploadPlugin(cdn, option = DEFAULT_OPTION) {
   this.option = Object.assign({}, DEFAULT_OPTION, option)
 }
 
-UploadPlugin.prototype.apply = function (compiler) {
+UploadPlugin.prototype.apply = function(compiler) {
   const self = this
   // extra treatment for cdnUrl
   const urlCb = this.option.urlCb
@@ -238,8 +255,10 @@ UploadPlugin.prototype.apply = function (compiler) {
   const distRoot = resolve(this.option.dist)
   // onFinish callback
   const onFinish = this.option.onFinish
+  // whether to log local files
+  const logLocal = this.option.logLocalFiles
 
-  compiler.plugin('done', async function (stats) {
+  compiler.plugin('done', async function(stats) {
     const chunks = stats.compilation.chunks
     const options = stats.compilation.options
 
@@ -269,7 +288,8 @@ UploadPlugin.prototype.apply = function (compiler) {
           last.font[name] = assetInfo
         }
         return last
-      }, {
+      },
+      {
         img: {},
         css: {},
         js: {},
@@ -277,12 +297,7 @@ UploadPlugin.prototype.apply = function (compiler) {
       }
     )
 
-    const {
-      img,
-      css,
-      js,
-      font
-    } = desireAssets
+    const { img, css, js, font } = desireAssets
 
     // make assets object to array with local path
     function makeArr(input) {
@@ -303,15 +318,13 @@ UploadPlugin.prototype.apply = function (compiler) {
     )
 
     // find out which js files are chunk chunk, which are not
-    const {
-      notChunkJsArr,
-      chunkArrWAbs
-    } = jsArr.reduce(
+    const { notChunkJsArr, chunkArrWAbs } = jsArr.reduce(
       (last, js) => {
         const isChunk = chunkArr.some(chunk => js.indexOf(chunk) > -1)
         isChunk ? last.chunkArrWAbs.push(js) : last.notChunkJsArr.push(js)
         return last
-      }, {
+      },
+      {
         notChunkJsArr: [],
         chunkArrWAbs: []
       }
@@ -322,6 +335,8 @@ UploadPlugin.prototype.apply = function (compiler) {
     // replace css
     // now css ref to img/font with cdn path
     // meanwhile upload chunk files to save time
+    log('upload img and font...')
+    logLocal && log(JSON.stringify([...imgArr, ...fontArr]))
     const [imgAndFontPairs, chunkPairs] = await Promise.all([
       self.cdn.upload([...imgArr, ...fontArr]),
       self.cdn.upload(chunkArrWAbs)
@@ -354,6 +369,9 @@ UploadPlugin.prototype.apply = function (compiler) {
       last = last.concat(findFileInRoot(type))
       return last
     }, [])
+
+    log('upload js and css...')
+    logLocal && log(JSON.stringify(adjustedFiles))
     const jsCssPair = await self.cdn.upload(adjustedFiles)
     const localCdnPair = Object.entries(jsCssPair)
     tplFiles.forEach(filePath => {
@@ -363,6 +381,7 @@ UploadPlugin.prototype.apply = function (compiler) {
     })
     // run onFinish if it is a valid function
     onFinish && typeof onFinish === 'function' && onFinish()
+    log('all done')
   })
 }
 
