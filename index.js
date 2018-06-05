@@ -180,12 +180,12 @@ function isFont(path) {
  */
 function gatherChunks(chunks, chunkFileName) {
   return chunks.reduce((last, chunk) => {
-    const id = chunk.id
-    const name = chunk.name
-    const hash = chunk.renderedHash
+    const { id, name, hash, renderedHash } = chunk
     last[id] = chunkFileName
-      .replace(/\[name]/g, name || id)
+      .replace(/\[name]/g, name)
+      .replace(/\[id]/g, id)
       .replace(/\[hash]/g, hash)
+      .replace(/\[chunkhash]/g, renderedHash)
     return last
   }, {})
 }
@@ -337,10 +337,7 @@ UploadPlugin.prototype.apply = function(compiler) {
     // meanwhile upload chunk files to save time
     log('upload img and font...')
     logLocal && log([...imgArr, ...fontArr])
-    const [imgAndFontPairs, chunkPairs] = await Promise.all([
-      self.cdn.upload([...imgArr, ...fontArr]),
-      self.cdn.upload(chunkArrWAbs)
-    ])
+    const imgAndFontPairs = await self.cdn.upload([...imgArr, ...fontArr])
     // update css files with cdn img/font
     Object.keys(css).forEach(name => {
       const location = css[name].existsAt
@@ -348,18 +345,26 @@ UploadPlugin.prototype.apply = function(compiler) {
         processCdnUrl(Object.entries(imgAndFontPairs), urlCb)
       )
     })
+    // update img/font reference in js files
+    // including chunk files
+    log('update js files with new img and font...')
+    jsArr.forEach(location =>
+      simpleReplace(location)(
+        processCdnUrl(Object.entries(imgAndFontPairs), urlCb)
+      )
+    )
+    // upload chunk files
+    log('upload chunks...')
+    const chunkPairs = await self.cdn.upload(chunkArrWAbs)
     // update chunkMap
-    const newChunkMap = processCdnUrl(
-      Object.entries(chunkPairs),
-      urlCb
-    ).reduce((last, entry) => {
-      const localPath = entry[0]
-      const cdnPath = entry[1]
-
-      const id = getIdForChunk(localPath, chunkMap)
-      last[id] = cdnPath
-      return last
-    }, {})
+    const newChunkMap = processCdnUrl(Object.entries(chunkPairs), urlCb).reduce(
+      (last, [localPath, cdnPath]) => {
+        const id = getIdForChunk(localPath, chunkMap)
+        last[id] = cdnPath
+        return last
+      },
+      {}
+    )
     updateScriptSrc(notChunkJsArr, newChunkMap)
 
     // concat js + css + img
