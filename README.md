@@ -17,7 +17,7 @@ npm install webpack-upload-plugin
 
 This plugin does not provide a service as uploading to cdn.<br>
 In fact, it actually depends on such service.<br>
-This plugin is for webpack 3.
+This plugin is for webpack >= 3.
 
 ## Dependency
 
@@ -49,7 +49,7 @@ const cdn = {
 }
 ```
 
-## Usage
+## Configuration
 
 In webpack.config.js
 
@@ -79,6 +79,75 @@ module.exports = {
 > Pay extra attention to your `publicPath` field of `webpack.config.js`, `''` is likely the best choice.
 
 Viola! That's all : )
+
+## Use case
+
+For a simple project with such structure:
+
+```
++-- src
+|   +-- assets
+|   |   +-- avatar.png
+|   +-- index.js
+|   +-- index.css
++-- dist
++-- index.html
++-- webpack.config.js
+```
+
+```js
+// in webpack.config.js
+const path = require('path')
+const HtmlWebpackPlugin = require('html-webpack-plugin')
+const MiniCssExtractPlugin = require('mini-css-extract-plugin')
+const UploadPlugin = require('webpack-upload-plugin')
+const cdn = require('xxx-cdn')
+
+module.exports = {
+  entry: './src/index.js',
+  output: {
+    path: path.resolve(__dirname, 'dist'),
+    filename: 'bundle.js',
+    publicPath: ''
+  },
+  module: {
+    rules: [
+      {
+        test: /\.js$/,
+        loader: 'babel-loader'
+      },
+      {
+        test: /\.css$/,
+        use: ['style-loader', 'css-loader']
+      },
+      {
+        test: /\.(png|jpe?g|gif|svg)(\?.*)?$/,
+        loader: 'url-loader',
+        options: {
+          limit: 10000
+        }
+      }
+    ]
+  },
+  plugins: [
+    new MiniCssExtractPlugin({
+      filename: '[name].css',
+      chunkFilename: '[id].css'
+    }),
+    new HtmlWebpackPlugin({
+      filename: 'index.html',
+      template: 'index.html',
+      inject: true
+    }),
+    new UploadPlugin(cdn, {
+      src: path.resolve(__dirname, 'dist'),
+      dist: path.resolve(__dirname, 'dist')
+    })
+  ]
+}
+```
+
+> For webpack v3 users, use `extract-text-webpack-plugin` instead of `mini-css-extract-plugin`
 
 ## License
 
