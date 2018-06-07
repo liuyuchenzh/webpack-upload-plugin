@@ -151,6 +151,20 @@ function processCdnUrl(entries, cb) {
   })
 }
 
+const handleCdnRes = cb => entries => {
+  if (typeof cb !== 'function') return logErr(`urlCb is not function`)
+  const isArr = Array.isArray(entries)
+  // if not array, handle as {[localLocation]: [cdnUrl]}
+  const target = isArr ? entries : Object.entries(entries)
+  return target.map(pair => {
+    // pair[1] should be cdn url
+    pair[1] = cb(pair[1])
+    if (typeof pair[1] !== 'string')
+      logErr(`the return result of urlCb is not string`)
+    return pair
+  })
+}
+
 function mapSrcToDist(srcFilePath, srcRoot, distRoot) {
   return srcFilePath.replace(srcRoot, distRoot)
 }
@@ -166,6 +180,7 @@ const isWoff2 = isType('woff2')
 const isTtf = isType('ttf')
 const isOtf = isType('otf')
 const isSvg = isType('svg')
+const isHTML = isType('html')
 
 function isFont(path) {
   return (
@@ -231,11 +246,12 @@ function getIdForChunk(chunkAbsPath, chunkMap) {
  * custom cdn module, need to have an upload API, return a Promise with structured response
  * like {localPath: cdnPath}
  * @param {object} option
- * @param {string} option.src
+ * @param {string=} option.src
  * @param {string=} option.dist
  * @param {urlCb=} option.urlCb
  * @param {function=} option.onFinish
  * @param {boolean=} option.logLocalFiles
+ * @param {object=} option.passToCdn
  * provide information about what the source html directory and compiled html directory
  * @constructor
  */
@@ -246,17 +262,25 @@ function UploadPlugin(cdn, option = DEFAULT_OPTION) {
 
 UploadPlugin.prototype.apply = function(compiler) {
   const self = this
-  // extra treatment for cdnUrl
-  const urlCb = this.option.urlCb
-  // could process other type of files rather than limited to html
-  const resolveList = this.option.resolve
+  const {
+    urlCb = input => input,
+    resolve: resolveList = ['html'],
+    src = '',
+    dist = src,
+    onFinish = () => {},
+    logLocalFiles: logLocal = false,
+    passToCdn
+  } = this.option
   // get absolute path of src and dist directory
-  const srcRoot = resolve(this.option.src)
-  const distRoot = resolve(this.option.dist)
-  // onFinish callback
-  const onFinish = this.option.onFinish
-  // whether to log local files
-  const logLocal = this.option.logLocalFiles
+  const srcRoot = resolve(src)
+  const distRoot = resolve(dist)
+  const getLocal2CdnObj = handleCdnRes(urlCb)
+  // wrap a new cdn object
+  const cdn = {
+    upload(...args) {
+      return self.cdn.upload(...args, passToCdn)
+    }
+  }
 
   compiler.plugin('done', async function(stats) {
     const chunks = stats.compilation.chunks
@@ -286,6 +310,8 @@ UploadPlugin.prototype.apply = function(compiler) {
           last.js[name] = assetInfo
         } else if (isFont(location)) {
           last.font[name] = assetInfo
+        } else if (isHTML(location)) {
+          last.html[name] = assetInfo
         }
         return last
       },
@@ -293,11 +319,12 @@ UploadPlugin.prototype.apply = function(compiler) {
         img: {},
         css: {},
         js: {},
-        font: {}
+        font: {},
+        html: {}
       }
     )
 
-    const { img, css, js, font } = desireAssets
+    const { img, css, js, font, html } = desireAssets
 
     // make assets object to array with local path
     function makeArr(input) {
@@ -310,6 +337,8 @@ UploadPlugin.prototype.apply = function(compiler) {
     const imgArr = makeArr(img)
     const fontArr = makeArr(font)
     const jsArr = makeArr(js)
+    const cssArr = makeArr(css)
+    const htmlArr = makeArr(html)
     const chunkLen = Object.keys(chunkMap).length
     const chunkArr = Array.from(
       Object.assign({}, chunkMap, {
@@ -337,27 +366,19 @@ UploadPlugin.prototype.apply = function(compiler) {
     // meanwhile upload chunk files to save time
     log('upload img and font...')
     logLocal && log([...imgArr, ...fontArr])
-    const imgAndFontPairs = await self.cdn.upload([...imgArr, ...fontArr])
-    // update css files with cdn img/font
-    Object.keys(css).forEach(name => {
-      const location = css[name].existsAt
-      simpleReplace(location)(
-        processCdnUrl(Object.entries(imgAndFontPairs), urlCb)
-      )
-    })
-    // update img/font reference in js files
+    const imgAndFontPairs = await cdn.upload([...imgArr, ...fontArr])
+    // update img/font reference in css/js files
     // including chunk files
-    log('update js files with new img and font...')
-    jsArr.forEach(location =>
-      simpleReplace(location)(
-        processCdnUrl(Object.entries(imgAndFontPairs), urlCb)
-      )
+    log('update css/js files with new img and font...')
+    const needToUpdateFiles = [...jsArr, ...cssArr]
+    needToUpdateFiles.forEach(location =>
+      simpleReplace(location)(getLocal2CdnObj(imgAndFontPairs))
     )
     // upload chunk files
     log('upload chunks...')
-    const chunkPairs = await self.cdn.upload(chunkArrWAbs)
+    const chunkPairs = await cdn.upload(chunkArrWAbs)
     // update chunkMap
-    const newChunkMap = processCdnUrl(Object.entries(chunkPairs), urlCb).reduce(
+    const newChunkMap = getLocal2CdnObj(chunkPairs).reduce(
       (last, [localPath, cdnPath]) => {
         const id = getIdForChunk(localPath, chunkMap)
         last[id] = cdnPath
@@ -368,24 +389,28 @@ UploadPlugin.prototype.apply = function(compiler) {
     updateScriptSrc(notChunkJsArr, newChunkMap)
 
     // concat js + css + img
-    const adjustedFiles = [...notChunkJsArr, ...makeArr(css), ...imgArr]
-    const findFileInRoot = gatherFileIn(self.option.src)
-    const tplFiles = resolveList.reduce((last, type) => {
-      last = last.concat(findFileInRoot(type))
-      return last
-    }, [])
+    const adjustedFiles = [...notChunkJsArr, ...cssArr, ...imgArr]
+    const findFileInRoot = gatherFileIn(src)
+    // if provide with src
+    // then use it
+    // or use emitted html files
+    const tplFiles = src
+      ? htmlArr
+      : resolveList.reduce((last, type) => {
+          last = last.concat(findFileInRoot(type))
+          return last
+        }, [])
 
     log('upload js and css...')
     logLocal && log(adjustedFiles)
-    const jsCssPair = await self.cdn.upload(adjustedFiles)
-    const localCdnPair = Object.entries(jsCssPair)
+    const jsCssLocal2CdnObj = await cdn.upload(adjustedFiles)
     tplFiles.forEach(filePath => {
       simpleReplace(filePath, mapSrcToDist(filePath, srcRoot, distRoot))(
-        processCdnUrl(localCdnPair, urlCb)
+        getLocal2CdnObj(jsCssLocal2CdnObj)
       )
     })
     // run onFinish if it is a valid function
-    onFinish && typeof onFinish === 'function' && onFinish()
+    onFinish()
     log('all done')
   })
 }
