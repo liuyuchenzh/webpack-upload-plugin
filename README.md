@@ -49,37 +49,6 @@ const cdn = {
 }
 ```
 
-## Configuration
-
-In webpack.config.js
-
-```js
-const WebpackUploadPlugin = require('webpack-upload-plugin')
-const cdn = require('some-cdn-package')
-module.exports = {
-  plugins: [
-    new WebpackUploadPlugin(cdn, {
-      src: path.resolve('./src'), // where your html file would emit to (with reference to local js/css files)
-      dist: path.resolve('./dist'), // only use this when there is a need to separate origin outputs with cdn ones
-      urlCb(input) {
-        return input
-      }, // give the power to play with cdn url before emit
-      resolve: ['html'], // typeof file needed to match; default to ['html']
-      onFinish() {}, // anything you want to run after the uploading and replacing process
-      logLocalFiles: false // whether to print all uploading file names during the process
-    })
-  ]
-}
-```
-
-> `src` and `dist` work best with absolute path!
->
-> This plugin doesn't work well with `UglifyJs` plugin!
->
-> Pay extra attention to your `publicPath` field of `webpack.config.js`, `''` is likely the best choice.
-
-Viola! That's all : )
-
 ## Use case
 
 For a simple project with such structure:
@@ -139,15 +108,44 @@ module.exports = {
       template: 'index.html',
       inject: true
     }),
-    new UploadPlugin(cdn, {
-      src: path.resolve(__dirname, 'dist'),
-      dist: path.resolve(__dirname, 'dist')
-    })
+    new UploadPlugin(cdn)
   ]
 }
 ```
 
 > For webpack v3 users, use `extract-text-webpack-plugin` instead of `mini-css-extract-plugin`
+
+## Configuration
+
+In webpack.config.js
+
+```js
+const WebpackUploadPlugin = require('webpack-upload-plugin')
+const cdn = require('some-cdn-package')
+module.exports = {
+  plugins: [new WebpackUploadPlugin(cdn, option)]
+}
+```
+
+`option` is optional.
+
+Valid fields shows below:
+
+- [`src`]\<String>: Where your valid template files would appear (with reference to local js/css files). Default to be where html files would be emitted to based on your webpack configuration.
+- [`dist`]\<String>: Where to emit final template files. Only use this when there is a need to separate origin outputs with cdn ones. Default to be same as `src`.
+- [`urlCb`]\<Function(String)>: Adjust cdn url accordingly. Cdn url would be passed in, and you need to return a string.
+- [`resolve`]\<Array\<String>>: Type of templates needed to match. In case you have a project with php, smarty, or other template language instead of html. Default to `['html']`
+- [`onFinish`]\<Function>: Called when everything finished. You can further play with files here.
+- [`logLocalFiles`]\<Boolean>: Whether to print all uploading file names during the process
+- [`passToCdn`]\<Object>: Extra config to pass to `cdn.upload` method. Something Like `cdn.upload(location, passToCdn)`.
+
+> `src` and `dist` work best with absolute path!
+>
+> This plugin doesn't work well with `UglifyJs` plugin!
+>
+> Pay extra attention to your `publicPath` field of `webpack.config.js`, `''` is likely the best choice.
+
+Viola! That's all : )
 
 ## License
 
