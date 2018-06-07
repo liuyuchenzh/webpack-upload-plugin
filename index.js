@@ -5,15 +5,6 @@ const name = require('./package.json').name
 const DEFAULT_SEP = '/'
 const FILTER_OUT_DIR = ['.idea', '.vscode', '.gitignore', 'node_modules']
 const SCRIPT_SRC_MATCH = /script\.src\s*=\s*__webpack_require__\.p[^;]+;?/g
-const DEFAULT_OPTION = {
-  src: resolve('src'),
-  dist: resolve('src'),
-  resolve: ['html'],
-  urlCb(input) {
-    return input
-  },
-  logLocalFiles: false
-}
 
 /**
  * log information
@@ -255,9 +246,9 @@ function getIdForChunk(chunkAbsPath, chunkMap) {
  * provide information about what the source html directory and compiled html directory
  * @constructor
  */
-function UploadPlugin(cdn, option = DEFAULT_OPTION) {
+function UploadPlugin(cdn, option = {}) {
   this.cdn = cdn
-  this.option = Object.assign({}, DEFAULT_OPTION, option)
+  this.option = option
 }
 
 UploadPlugin.prototype.apply = function(compiler) {
@@ -390,13 +381,13 @@ UploadPlugin.prototype.apply = function(compiler) {
 
     // concat js + css + img
     const adjustedFiles = [...notChunkJsArr, ...cssArr, ...imgArr]
-    const findFileInRoot = gatherFileIn(src)
     // if provide with src
     // then use it
     // or use emitted html files
-    const tplFiles = src
+    const tplFiles = !src
       ? htmlArr
       : resolveList.reduce((last, type) => {
+          const findFileInRoot = gatherFileIn(src)
           last = last.concat(findFileInRoot(type))
           return last
         }, [])
