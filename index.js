@@ -259,6 +259,7 @@ UploadPlugin.prototype.apply = function(compiler) {
     src = '',
     dist = src,
     onFinish = () => {},
+    onError = () => {},
     logLocalFiles: logLocal = false,
     passToCdn
   } = this.option
@@ -274,135 +275,140 @@ UploadPlugin.prototype.apply = function(compiler) {
   }
 
   compiler.plugin('done', async function(stats) {
-    const chunks = stats.compilation.chunks
-    const options = stats.compilation.options
+    try {
+      const chunks = stats.compilation.chunks
+      const options = stats.compilation.options
 
-    // here we get chunks needs to be dealt with
-    const chunkMap = gatherChunks(chunks, options.output.chunkFilename)
+      // here we get chunks needs to be dealt with
+      const chunkMap = gatherChunks(chunks, options.output.chunkFilename)
 
-    // all assets including js/css/img
-    const assets = stats.compilation.assets
-    const assetsNames = Object.keys(assets)
-    // classify assets
-    const desireAssets = assetsNames.reduce(
-      (last, name) => {
-        const assetInfo = assets[name]
-        const location = assetInfo.existsAt
-        if (
-          isGif(location) ||
-          isPng(location) ||
-          isJpg(location) ||
-          isWebp(location)
-        ) {
-          last.img[name] = assetInfo
-        } else if (isCss(location)) {
-          last.css[name] = assetInfo
-        } else if (isJs(location)) {
-          last.js[name] = assetInfo
-        } else if (isFont(location)) {
-          last.font[name] = assetInfo
-        } else if (isHTML(location)) {
-          last.html[name] = assetInfo
-        }
-        return last
-      },
-      {
-        img: {},
-        css: {},
-        js: {},
-        font: {},
-        html: {}
-      }
-    )
-
-    const { img, css, js, font, html } = desireAssets
-
-    // make assets object to array with local path
-    function makeArr(input) {
-      return Object.keys(input).map(name => {
-        const info = input[name]
-        return info.existsAt
-      })
-    }
-
-    const imgArr = makeArr(img)
-    const fontArr = makeArr(font)
-    const jsArr = makeArr(js)
-    const cssArr = makeArr(css)
-    const htmlArr = makeArr(html)
-    const chunkLen = Object.keys(chunkMap).length
-    const chunkArr = Array.from(
-      Object.assign({}, chunkMap, {
-        length: chunkLen
-      })
-    )
-
-    // find out which js files are chunk chunk, which are not
-    const { notChunkJsArr, chunkArrWAbs } = jsArr.reduce(
-      (last, js) => {
-        const isChunk = chunkArr.some(chunk => js.indexOf(chunk) > -1)
-        isChunk ? last.chunkArrWAbs.push(js) : last.notChunkJsArr.push(js)
-        return last
-      },
-      {
-        notChunkJsArr: [],
-        chunkArrWAbs: []
-      }
-    )
-
-    // upload img/font
-    // find img/font in css
-    // replace css
-    // now css ref to img/font with cdn path
-    // meanwhile upload chunk files to save time
-    log('upload img and font...')
-    logLocal && log([...imgArr, ...fontArr])
-    const imgAndFontPairs = await cdn.upload([...imgArr, ...fontArr])
-    // update img/font reference in css/js files
-    // including chunk files
-    log('update css/js files with new img and font...')
-    const needToUpdateFiles = [...jsArr, ...cssArr]
-    needToUpdateFiles.forEach(location =>
-      simpleReplace(location)(getLocal2CdnObj(imgAndFontPairs))
-    )
-    // upload chunk files
-    log('upload chunks...')
-    const chunkPairs = await cdn.upload(chunkArrWAbs)
-    // update chunkMap
-    const newChunkMap = getLocal2CdnObj(chunkPairs).reduce(
-      (last, [localPath, cdnPath]) => {
-        const id = getIdForChunk(localPath, chunkMap)
-        last[id] = cdnPath
-        return last
-      },
-      {}
-    )
-    updateScriptSrc(notChunkJsArr, newChunkMap)
-
-    // concat js + css + img
-    const adjustedFiles = [...notChunkJsArr, ...cssArr, ...imgArr]
-    // if provide with src
-    // then use it
-    // or use emitted html files
-    const tplFiles = !src
-      ? htmlArr
-      : resolveList.reduce((last, type) => {
-          const findFileInRoot = gatherFileIn(src)
-          last = last.concat(findFileInRoot(type))
+      // all assets including js/css/img
+      const assets = stats.compilation.assets
+      const assetsNames = Object.keys(assets)
+      // classify assets
+      const desireAssets = assetsNames.reduce(
+        (last, name) => {
+          const assetInfo = assets[name]
+          const location = assetInfo.existsAt
+          if (
+            isGif(location) ||
+            isPng(location) ||
+            isJpg(location) ||
+            isWebp(location)
+          ) {
+            last.img[name] = assetInfo
+          } else if (isCss(location)) {
+            last.css[name] = assetInfo
+          } else if (isJs(location)) {
+            last.js[name] = assetInfo
+          } else if (isFont(location)) {
+            last.font[name] = assetInfo
+          } else if (isHTML(location)) {
+            last.html[name] = assetInfo
+          }
           return last
-        }, [])
-
-    log('upload js and css...')
-    logLocal && log(adjustedFiles)
-    const jsCssLocal2CdnObj = await cdn.upload(adjustedFiles)
-    tplFiles.forEach(filePath => {
-      simpleReplace(filePath, mapSrcToDist(filePath, srcRoot, distRoot))(
-        getLocal2CdnObj(jsCssLocal2CdnObj)
+        },
+        {
+          img: {},
+          css: {},
+          js: {},
+          font: {},
+          html: {}
+        }
       )
-    })
-    // run onFinish if it is a valid function
-    onFinish()
-    log('all done')
+
+      const { img, css, js, font, html } = desireAssets
+
+      // make assets object to array with local path
+      function makeArr(input) {
+        return Object.keys(input).map(name => {
+          const info = input[name]
+          return info.existsAt
+        })
+      }
+
+      const imgArr = makeArr(img)
+      const fontArr = makeArr(font)
+      const jsArr = makeArr(js)
+      const cssArr = makeArr(css)
+      const htmlArr = makeArr(html)
+      const chunkLen = Object.keys(chunkMap).length
+      const chunkArr = Array.from(
+        Object.assign({}, chunkMap, {
+          length: chunkLen
+        })
+      )
+
+      // find out which js files are chunk chunk, which are not
+      const { notChunkJsArr, chunkArrWAbs } = jsArr.reduce(
+        (last, js) => {
+          const isChunk = chunkArr.some(chunk => js.indexOf(chunk) > -1)
+          isChunk ? last.chunkArrWAbs.push(js) : last.notChunkJsArr.push(js)
+          return last
+        },
+        {
+          notChunkJsArr: [],
+          chunkArrWAbs: []
+        }
+      )
+
+      // upload img/font
+      // find img/font in css
+      // replace css
+      // now css ref to img/font with cdn path
+      // meanwhile upload chunk files to save time
+      log('upload img and font...')
+      logLocal && log([...imgArr, ...fontArr])
+      const imgAndFontPairs = await cdn.upload([...imgArr, ...fontArr])
+      // update img/font reference in css/js files
+      // including chunk files
+      log('update css/js files with new img and font...')
+      const needToUpdateFiles = [...jsArr, ...cssArr]
+      needToUpdateFiles.forEach(location =>
+        simpleReplace(location)(getLocal2CdnObj(imgAndFontPairs))
+      )
+      // upload chunk files
+      log('upload chunks...')
+      const chunkPairs = await cdn.upload(chunkArrWAbs)
+      // update chunkMap
+      const newChunkMap = getLocal2CdnObj(chunkPairs).reduce(
+        (last, [localPath, cdnPath]) => {
+          const id = getIdForChunk(localPath, chunkMap)
+          last[id] = cdnPath
+          return last
+        },
+        {}
+      )
+      updateScriptSrc(notChunkJsArr, newChunkMap)
+
+      // concat js + css + img
+      const adjustedFiles = [...notChunkJsArr, ...cssArr, ...imgArr]
+      // if provide with src
+      // then use it
+      // or use emitted html files
+      const tplFiles = !src
+        ? htmlArr
+        : resolveList.reduce((last, type) => {
+            const findFileInRoot = gatherFileIn(src)
+            last = last.concat(findFileInRoot(type))
+            return last
+          }, [])
+
+      log('upload js and css...')
+      logLocal && log(adjustedFiles)
+      const jsCssLocal2CdnObj = await cdn.upload(adjustedFiles)
+      tplFiles.forEach(filePath => {
+        simpleReplace(filePath, mapSrcToDist(filePath, srcRoot, distRoot))(
+          getLocal2CdnObj(jsCssLocal2CdnObj)
+        )
+      })
+      // run onFinish if it is a valid function
+      onFinish()
+      log('all done')
+    } catch (e) {
+      // run when encounter error
+      onError(e)
+    }
   })
 }
 

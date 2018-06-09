@@ -136,6 +136,7 @@ Valid fields shows below:
 - [`urlCb`]\<Function(String)>: Adjust cdn url accordingly. Cdn url would be passed in, and you need to return a string.
 - [`resolve`]\<Array\<String>>: Type of templates needed to match. In case you have a project with php, smarty, or other template language instead of html. Default to `['html']`
 - [`onFinish`]\<Function>: Called when everything finished. You can further play with files here.
+- [`onError`]\<Function\<Error>> Called when encounter any error.
 - [`logLocalFiles`]\<Boolean>: Whether to print all uploading file names during the process
 - [`passToCdn`]\<Object>: Extra config to pass to `cdn.upload` method. Something Like `cdn.upload(location, passToCdn)`.
 
