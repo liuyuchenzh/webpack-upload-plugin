@@ -160,24 +160,18 @@ function mapSrcToDist(srcFilePath, srcRoot, distRoot) {
   return srcFilePath.replace(srcRoot, distRoot)
 }
 
-const isJpg = isType('jpg')
-const isJpeg = isType('jpeg')
-const isPng = isType('png')
-const isGif = isType('gif')
-const isWebp = isType('webp')
+const imgTypeArr = ['jpg', 'jpeg', 'png', 'gif', 'webp']
+const fontTypeArr = ['woff', 'woff2', 'ttf', 'oft', 'svg']
 const isCss = isType('css')
 const isJs = isType('js')
-const isWoff = isType('woff')
-const isWoff2 = isType('woff2')
-const isTtf = isType('ttf')
-const isOtf = isType('otf')
-const isSvg = isType('svg')
 const isHTML = isType('html')
 
 function isFont(path) {
-  return (
-    isWoff(path) || isWoff2(path) || isTtf(path) || isOtf(path) || isSvg(path)
-  )
+  return fontTypeArr.some(type => isType(type)(path))
+}
+
+function isImg(path) {
+  return imgTypeArr.some(type => isType(type)(path))
 }
 
 /**
@@ -291,13 +285,7 @@ UploadPlugin.prototype.apply = function(compiler) {
         (last, name) => {
           const assetInfo = assets[name]
           const location = assetInfo.existsAt
-          if (
-            isGif(location) ||
-            isPng(location) ||
-            isJpg(location) ||
-            isWebp(location) ||
-            isJpeg(location)
-          ) {
+          if (isImg(location)) {
             last.img[name] = assetInfo
           } else if (isCss(location)) {
             last.css[name] = assetInfo
