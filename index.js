@@ -161,6 +161,7 @@ function mapSrcToDist(srcFilePath, srcRoot, distRoot) {
 }
 
 const isJpg = isType('jpg')
+const isJpeg = isType('jpeg')
 const isPng = isType('png')
 const isGif = isType('gif')
 const isWebp = isType('webp')
@@ -294,7 +295,8 @@ UploadPlugin.prototype.apply = function(compiler) {
             isGif(location) ||
             isPng(location) ||
             isJpg(location) ||
-            isWebp(location)
+            isWebp(location) ||
+            isJpeg(location)
           ) {
             last.img[name] = assetInfo
           } else if (isCss(location)) {
