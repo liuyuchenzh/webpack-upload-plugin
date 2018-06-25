@@ -10,7 +10,7 @@ node >= 7.4.0<br>
 ## Install
 
 ```bash
-npm install webpack-upload-plugin
+npm i -D webpack-upload-plugin
 ```
 
 ## Notice
