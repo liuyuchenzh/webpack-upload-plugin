@@ -228,7 +228,6 @@ function updateScriptSrc(files, chunkCdnMap) {
     let newContent = content
     // update chunkMap
     if (SCRIPT_SRC_MATCH.test(content)) {
-      console.log('find manifest', file)
       const srcAssignStr = `script.src = ${JSON.stringify(
         chunkCdnMap
       )}[chunkId];`
