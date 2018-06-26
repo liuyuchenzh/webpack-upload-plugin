@@ -92,7 +92,11 @@ function generateLocalPathStr(localPath) {
  * @return {RegExp}
  */
 function generateLocalPathReg(localPath) {
-  return new RegExp(generateLocalPathStr(localPath), 'g')
+  const content = generateLocalPathStr(localPath)
+  const prefix = `([(=]\s*['"]?)`
+  // using prefix to strictly match resource reference
+  // like src="", url(""), a = ""
+  return new RegExp(`${prefix}${content}`, 'g')
 }
 
 /**
@@ -115,7 +119,10 @@ function simpleReplace(
       const localPath = normalize(file[0])
       const cdnPath = file[1]
       const localPathReg = generateLocalPathReg(localPath)
-      last = replaceFn(last, srcPath).replace(localPathReg, _ => cdnPath)
+      last = replaceFn(last, srcPath).replace(
+        localPathReg,
+        (_, prefix) => `${prefix}${cdnPath}`
+      )
       return last
     }, srcFile)
     fse.ensureFileSync(distPath)
@@ -179,7 +186,7 @@ function mapSrcToDist(srcFilePath, srcRoot, distRoot) {
 }
 
 const imgTypeArr = ['jpg', 'jpeg', 'png', 'gif', 'webp']
-const fontTypeArr = ['woff', 'woff2', 'ttf', 'oft', 'svg']
+const fontTypeArr = ['woff', 'woff2', 'ttf', 'oft', 'svg', 'eot']
 const isCss = isType('css')
 const isJs = isType('js')
 const isHTML = isType('html')
@@ -221,6 +228,7 @@ function updateScriptSrc(files, chunkCdnMap) {
     let newContent = content
     // update chunkMap
     if (SCRIPT_SRC_MATCH.test(content)) {
+      console.log('find manifest', file)
       const srcAssignStr = `script.src = ${JSON.stringify(
         chunkCdnMap
       )}[chunkId];`
@@ -263,6 +271,10 @@ function getIdForChunk(chunkAbsPath, chunkMap) {
  * @param {string=} option.dist
  * @param {urlCb=} option.urlCb
  * @param {function=} option.onFinish
+ * @param {function=} option.replaceFn
+ * @param {string=} option.staticDir
+ * @param {function=} option.waitFor
+ * @param {boolean=} option.dirtyCheck
  * @param {boolean=} option.logLocalFiles
  * @param {object=} option.passToCdn
  * provide information about what the source html directory and compiled html directory
@@ -286,6 +298,7 @@ UploadPlugin.prototype.apply = function(compiler) {
     staticDir = '',
     replaceFn = input => input,
     waitFor = () => Promise.resolve(true),
+    dirtyCheck = false,
     passToCdn
   } = this.option
   // get absolute path of src and dist directory
@@ -324,15 +337,21 @@ UploadPlugin.prototype.apply = function(compiler) {
       // if user offers staticDir
       // then only collect files from staticDir
       // instead of ones provided by webpack
-      const gatherManualAssets = gatherFileIn(staticDir)
+      // if pass in an array, gather files recursively
+      const gatherManualAssets = Array.isArray(staticDir)
+        ? type => {
+            return staticDir.reduce((last, dir) => {
+              return [...last, ...gatherFileIn(dir)(type)]
+            }, [])
+          }
+        : gatherFileIn(staticDir)
       const manualAssets = staticDir
         ? [...imgTypeArr, ...fontTypeArr, 'css', 'js'].reduce((last, type) => {
             const files = gatherManualAssets(type)
             return files.reduce((fileLast, file) => {
-              const name = path.basename(file, `.${type}`)
               return {
                 ...fileLast,
-                [name]: {
+                [file]: {
                   existsAt: file
                 }
               }
@@ -414,7 +433,7 @@ UploadPlugin.prototype.apply = function(compiler) {
       // now css ref to img/font with cdn path
       // meanwhile upload chunk files to save time
       log('upload img and font...')
-      logLocal && log([...imgArr, ...fontArr])
+      logLocal && console.log([...imgArr, ...fontArr])
       const imgAndFontPairs = await cdn.upload([...imgArr, ...fontArr])
       // update img/font reference in css/js files
       // including chunk files
@@ -437,10 +456,13 @@ UploadPlugin.prototype.apply = function(compiler) {
         },
         {}
       )
-      updateScriptSrc(notChunkJsArr, newChunkMap)
+
+      // if use dirty check, then check all js files for chunkMap
+      const manifestList = dirtyCheck ? jsArr : notChunkJsArr
+      updateScriptSrc(manifestList, newChunkMap)
 
       // concat js + css + img
-      const adjustedFiles = [...notChunkJsArr, ...cssArr, ...imgArr]
+      const adjustedFiles = [...manifestList, ...cssArr, ...imgArr]
       // if provide with src
       // then use it
       // or use emitted html files
@@ -453,7 +475,7 @@ UploadPlugin.prototype.apply = function(compiler) {
           }, [])
 
       log('upload js and css...')
-      logLocal && log(adjustedFiles)
+      logLocal && console.log(adjustedFiles)
       const jsCssLocal2CdnObj = await cdn.upload(adjustedFiles)
       tplFiles.forEach(filePath => {
         simpleReplace(
@@ -467,7 +489,7 @@ UploadPlugin.prototype.apply = function(compiler) {
       log('all done')
     } catch (e) {
       log('err occurred!')
-      log(e)
+      console.log(e)
       // run when encounter error
       onError(e)
     }
