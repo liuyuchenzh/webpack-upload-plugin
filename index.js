@@ -5,6 +5,7 @@ const name = require('./package.json').name
 const DEFAULT_SEP = '/'
 const FILTER_OUT_DIR = ['.idea', '.vscode', '.gitignore', 'node_modules']
 const SCRIPT_SRC_MATCH = /script\.src\s*=\s*__webpack_require__\.p[^;]+;?/g
+const PUBLIC_PATH_MATCH = /__webpack_require__\.p\s?=\s?([^;]+);/g
 
 /**
  * log information
@@ -20,6 +21,28 @@ function log(msg) {
  */
 function logErr(msg) {
   console.error(`[${name}]: ${msg}`)
+}
+
+// remove publicPath from reference
+const handlePublicPath = publicPath => content => {
+  // match strictly
+  const regStr = publicPath
+    .split(DEFAULT_SEP)
+    .map(part => {
+      if (/\./.test(part)) {
+        return part.replace(/\.+/g, match =>
+          match
+            .split('')
+            .map(dot => '\\' + dot)
+            .join('')
+        )
+      }
+      return part
+    })
+    .join('\\/')
+  const refinedRegStr = `([(=]['"]?)${regStr}`
+  const reg = new RegExp(refinedRegStr, 'g')
+  return content.replace(reg, (_, prefix) => (prefix ? prefix : ''))
 }
 
 // 1. gather html file
@@ -46,14 +69,13 @@ function isFilterOutDir(input) {
 }
 
 /**
- * produce RegExp to match local path
+ * given localPath, return string to form matching RegExp
  * @param {string} localPath
- * @return {RegExp}
  */
-function generateLocalPathReg(localPath) {
+function generateLocalPathStr(localPath) {
   const pathArr = localPath.split(DEFAULT_SEP)
   const len = pathArr.length
-  const regStr = pathArr
+  return pathArr
     .map((part, index) => {
       if (index === len - 1) {
         return `${part}`
@@ -62,7 +84,15 @@ function generateLocalPathReg(localPath) {
       }
     })
     .join(`\\${DEFAULT_SEP}?`)
-  return new RegExp(regStr, 'g')
+}
+
+/**
+ * produce RegExp to match local path
+ * @param {string} localPath
+ * @return {RegExp}
+ */
+function generateLocalPathReg(localPath) {
+  return new RegExp(generateLocalPathStr(localPath), 'g')
 }
 
 /**
@@ -70,17 +100,22 @@ function generateLocalPathReg(localPath) {
  * 1. make sure the range: srcPath
  * 2. provide inline path to search and to replace with: localCdnPair
  * @param {string} srcPath
- * @param {string} distPath
+ * @param {string=} distPath
+ * @param {function=} replaceFn
  * @return {function}
  */
-function simpleReplace(srcPath, distPath = srcPath) {
+function simpleReplace(
+  srcPath,
+  distPath = srcPath,
+  replaceFn = input => input
+) {
   const srcFile = fs.readFileSync(srcPath, 'utf-8')
   return function savePair(localCdnPair) {
     const ret = localCdnPair.reduce((last, file) => {
       const localPath = normalize(file[0])
       const cdnPath = file[1]
       const localPathReg = generateLocalPathReg(localPath)
-      last = last.replace(localPathReg, match => cdnPath)
+      last = replaceFn(last, srcPath).replace(localPathReg, _ => cdnPath)
       return last
     }, srcFile)
     fse.ensureFileSync(distPath)
@@ -123,23 +158,6 @@ function isType(type) {
   return function enterFile(file) {
     return isFile(file) && path.extname(file) === '.' + type
   }
-}
-
-/**
- * give the power of playing with cdn url
- * @param {*[]} entries
- * @param {function} cb
- * @returns {[string, string][] | void}
- */
-function processCdnUrl(entries, cb) {
-  if (typeof cb !== 'function') return logErr(`urlCb is not function`)
-  return entries.map(pair => {
-    // pair[1] should be cdn url
-    pair[1] = cb(pair[1])
-    if (typeof pair[1] !== 'string')
-      logErr(`the return result of urlCb is not string`)
-    return pair
-  })
 }
 
 const handleCdnRes = cb => entries => {
@@ -200,13 +218,22 @@ function gatherChunks(chunks, chunkFileName) {
 function updateScriptSrc(files, chunkCdnMap) {
   files.forEach(file => {
     const content = fs.readFileSync(file, 'utf-8')
+    let newContent = content
+    // update chunkMap
     if (SCRIPT_SRC_MATCH.test(content)) {
       const srcAssignStr = `script.src = ${JSON.stringify(
         chunkCdnMap
       )}[chunkId];`
-      const newContent = content.replace(SCRIPT_SRC_MATCH, srcAssignStr)
-      fs.writeFileSync(file, newContent)
+      newContent = newContent.replace(SCRIPT_SRC_MATCH, srcAssignStr)
     }
+    // update publicPath
+    if (PUBLIC_PATH_MATCH.test(content)) {
+      newContent = newContent.replace(
+        PUBLIC_PATH_MATCH,
+        `__webpack_require__.p = "";`
+      )
+    }
+    fs.writeFileSync(file, newContent)
   })
 }
 
@@ -256,6 +283,9 @@ UploadPlugin.prototype.apply = function(compiler) {
     onFinish = () => {},
     onError = () => {},
     logLocalFiles: logLocal = false,
+    staticDir = '',
+    replaceFn = input => input,
+    waitFor = () => Promise.resolve(true),
     passToCdn
   } = this.option
   // get absolute path of src and dist directory
@@ -271,14 +301,50 @@ UploadPlugin.prototype.apply = function(compiler) {
 
   compiler.plugin('done', async function(stats) {
     try {
-      const chunks = stats.compilation.chunks
-      const options = stats.compilation.options
-
+      // wait to handle extra logic
+      await waitFor()
+      const { chunks, options } = stats.compilation
+      const {
+        output: { publicPath }
+      } = options
+      // don't want to use publicPath since about to use cdn url
+      const removePublicPath = handlePublicPath(publicPath)
+      // actual replaceFn that gonna be used
+      const refinedReplaceFn = (content, location) => {
+        const type = path.extname(location)
+        // only remove publicPath occurrence for css/template files
+        // it's tricky to handle js files
+        const removePublicPathTypes = ['.css', ...resolveList.map(t => `.${t}`)]
+        const toRemove = removePublicPathTypes.includes(type)
+        return replaceFn(
+          toRemove ? removePublicPath(content) : content,
+          location
+        )
+      }
+      // if user offers staticDir
+      // then only collect files from staticDir
+      // instead of ones provided by webpack
+      const gatherManualAssets = gatherFileIn(staticDir)
+      const manualAssets = staticDir
+        ? [...imgTypeArr, ...fontTypeArr, 'css', 'js'].reduce((last, type) => {
+            const files = gatherManualAssets(type)
+            return files.reduce((fileLast, file) => {
+              const name = path.basename(file, `.${type}`)
+              return {
+                ...fileLast,
+                [name]: {
+                  existsAt: file
+                }
+              }
+            }, last)
+          }, {})
+        : {}
       // here we get chunks needs to be dealt with
       const chunkMap = gatherChunks(chunks, options.output.chunkFilename)
-
       // all assets including js/css/img
-      const assets = stats.compilation.assets
+      const { assets } = staticDir
+        ? { assets: manualAssets }
+        : stats.compilation
       const assetsNames = Object.keys(assets)
       // classify assets
       const desireAssets = assetsNames.reduce(
@@ -355,7 +421,9 @@ UploadPlugin.prototype.apply = function(compiler) {
       log('update css/js files with new img and font...')
       const needToUpdateFiles = [...jsArr, ...cssArr]
       needToUpdateFiles.forEach(location =>
-        simpleReplace(location)(getLocal2CdnObj(imgAndFontPairs))
+        simpleReplace(location, location, refinedReplaceFn)(
+          getLocal2CdnObj(imgAndFontPairs)
+        )
       )
       // upload chunk files
       log('upload chunks...')
@@ -388,14 +456,18 @@ UploadPlugin.prototype.apply = function(compiler) {
       logLocal && log(adjustedFiles)
       const jsCssLocal2CdnObj = await cdn.upload(adjustedFiles)
       tplFiles.forEach(filePath => {
-        simpleReplace(filePath, mapSrcToDist(filePath, srcRoot, distRoot))(
-          getLocal2CdnObj(jsCssLocal2CdnObj)
-        )
+        simpleReplace(
+          filePath,
+          mapSrcToDist(filePath, srcRoot, distRoot),
+          refinedReplaceFn
+        )(getLocal2CdnObj(jsCssLocal2CdnObj))
       })
       // run onFinish if it is a valid function
       onFinish()
       log('all done')
     } catch (e) {
+      log('err occurred!')
+      log(e)
       // run when encounter error
       onError(e)
     }

@@ -51,6 +51,8 @@ const cdn = {
 
 ## Use case
 
+### Basic one
+
 For a simple project with such structure:
 
 ```
@@ -115,6 +117,56 @@ module.exports = {
 
 > For webpack v3 users, use `extract-text-webpack-plugin` instead of `mini-css-extract-plugin`
 
+### Complex one with Server Template
+
+Run webpack in `build`, then copy all emitted files from `build/dist` to `project/src`.
+
+Public can only access files from `project/public`
+
+```
++-- project
+| +-- src
+| +-- public
++-- build
+| +-- src
+| | +-- assets
+| | |   +-- avatar.png
+| | +-- index.js
+| | +-- index.css
+| +-- dist
+| +-- index.html
+| +-- webpack.config.js
+```
+
+```js
+// only focus on WebpackUploadPlugin here
+{
+  plugins: [
+    new UploadPlugin(cdn, {
+      src: path.resolve(__dirname, '..', 'project/src')
+      dist: path.resolve(__dirname, '..', 'project/public')
+      staticDir: path.resolve(__dirname, '..', 'project/src')
+    })
+  ]
+}
+```
+
+> Make sure `WebpackUploadPlugin` is after any copy-related plugins in `plugins` field.
+
+> If in `project/public`, there are different prefix from `publicPath` you passed to webpack, then use `replaceFn` to remove such prefix.
+
+```js
+const config = {
+  replaceFn(content, location) {
+    return path.extname(location) === '.html'
+      ? content.replace(prefix, '')
+      : content
+  }
+}
+```
+
+> If the copy process takes a long time, use `waitFor` to make sure only start uploading when things are settled.
+
 ## Configuration
 
 In webpack.config.js
@@ -133,6 +185,9 @@ Valid fields shows below:
 
 - [`src`]\<String>: Where your valid template files would appear (with reference to local js/css files). Default to be where html files would be emitted to based on your webpack configuration.
 - [`dist`]\<String>: Where to emit final template files. Only use this when there is a need to separate origin outputs with cdn ones. Default to be same as `src`.
+- [`staticDir`]\<String>: If static files emitted by webpack is not what you want, or not enough(normally when you copy all resources to another directory), then set `staticDir` to the directory that contains all your desired resource files.
+- [`replaceFn`]\<Function(String, String)>: For some complex projects, you may have multiple `publicPath` or corresponding concepts. To handle such cases accordingly, you can pass a `replaceFn` function, which will receive two parameters, which are `parsing content` and `file path` in that order. `parsing content` would be file in string format with local resources reference. `file path` is the location of `parsing content` on your file system. This function will be called when plugin start to replace reference. The string `replaceFn` return will represent the new desired content, which will be used as the input template to replace all local reference with cdn ones.
+- [`waitFor`]\<Function\<Promise\<\*>>>: A function that returns a Promise. The plugin will wait for the Promise to resolve and then start everything.
 - [`urlCb`]\<Function(String)>: Adjust cdn url accordingly. Cdn url would be passed in, and you need to return a string.
 - [`resolve`]\<Array\<String>>: Type of templates needed to match. In case you have a project with php, smarty, or other template language instead of html. Default to `['html']`
 - [`onFinish`]\<Function>: Called when everything finished. You can further play with files here.
