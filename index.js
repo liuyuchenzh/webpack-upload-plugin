@@ -355,12 +355,11 @@ UploadPlugin.prototype.apply = function(compiler) {
         ? [...imgTypeArr, ...fontTypeArr, 'css', 'js'].reduce((last, type) => {
             const files = gatherManualAssets(type)
             return files.reduce((fileLast, file) => {
-              return {
-                ...fileLast,
+              return Object.assign(fileLast, {
                 [file]: {
                   existsAt: file
                 }
-              }
+              })
             }, last)
           }, {})
         : {}
