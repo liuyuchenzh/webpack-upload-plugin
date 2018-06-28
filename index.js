@@ -1,6 +1,7 @@
 const fs = require('fs')
 const fse = require('fs-extra')
 const path = require('path')
+const parallel = require('./utils/parallel.js')
 const name = require('./package.json').name
 const DEFAULT_SEP = '/'
 const FILTER_OUT_DIR = ['.idea', '.vscode', '.gitignore', 'node_modules']
@@ -276,6 +277,7 @@ function getIdForChunk(chunkAbsPath, chunkMap) {
  * @param {boolean=} option.dirtyCheck
  * @param {boolean=} option.logLocalFiles
  * @param {object=} option.passToCdn
+ * @param {boolean=} option.enableCache
  * provide information about what the source html directory and compiled html directory
  * @constructor
  */
@@ -298,18 +300,27 @@ UploadPlugin.prototype.apply = function(compiler) {
     replaceFn = input => input,
     waitFor = () => Promise.resolve(true),
     dirtyCheck = false,
-    passToCdn
+    passToCdn,
+    enableCache = false
   } = this.option
   // get absolute path of src and dist directory
   const srcRoot = resolve(src)
   const distRoot = resolve(dist)
   const getLocal2CdnObj = handleCdnRes(urlCb)
   // wrap a new cdn object
-  const cdn = {
+  const rawCdn = {
     upload(...args) {
       return self.cdn.upload(...args, passToCdn)
     }
   }
+
+  // using cache or not
+  const cdn = enableCache
+    ? (function() {
+        const cache = require('./utils/compatCache.js')
+        return cache(parallel(rawCdn), passToCdn)
+      })()
+    : parallel(rawCdn)
 
   compiler.plugin('done', async function(stats) {
     try {
