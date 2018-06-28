@@ -31,14 +31,11 @@ const sliceLimit = slice(LIMIT)
 module.exports = cdn => {
   const parallelCdn = {
     upload: async files => {
-      const res = await Promise.all([
-        ...sliceLimit(files).map(chunk => cdn.upload(chunk))
-      ])
+      const res = await Promise.all(
+        sliceLimit(files).map(chunk => cdn.upload(chunk))
+      )
       return res.reduce((last, chunkRes) => {
-        return {
-          ...last,
-          ...chunkRes
-        }
+        return Object.assign(last, chunkRes)
       }, {})
     }
   }

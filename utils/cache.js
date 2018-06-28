@@ -36,10 +36,7 @@ const getHash = md5
  */
 const updateCacheFile = (input = {}) => {
   const inputObj = typeof input === 'string' ? JSON.parse(input) : input
-  const toSave = {
-    ...cacheObj,
-    ...inputObj
-  }
+  const toSave = Object.assign(cacheObj, inputObj)
   fs.writeFileSync(location, JSON.stringify(toSave))
 }
 

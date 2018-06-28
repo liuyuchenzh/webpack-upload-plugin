@@ -61,10 +61,6 @@ function normalize(input, sep = DEFAULT_SEP) {
   return _input.split(path.sep).join(sep)
 }
 
-function join(...inputs) {
-  return normalize(path.join(...inputs))
-}
-
 function isFilterOutDir(input) {
   return FILTER_OUT_DIR.includes(input)
 }

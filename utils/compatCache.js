@@ -26,18 +26,15 @@ const compatUpload = (cdn, option = {}) => {
         const fileContent = read(file)
         const hash = Cache.getHash(fileContent)
         if (Cache.shouldUpload(hash)) {
-          return {
-            ...last,
-            toUpload: [...last.toUpload, file]
-          }
+          return Object.assign(last, {
+            toUpload: last.toUpload.concat(file)
+          })
         }
-        return {
-          ...last,
-          pairFromCache: {
-            ...last.pairFromCache,
+        return Object.assign(last, {
+          pairFromCache: Object.assign(last.pairFromCache, {
             [file]: Cache.getUrl(hash)
-          }
-        }
+          })
+        })
       },
       {
         toUpload: [],
@@ -55,10 +52,7 @@ const compatUpload = (cdn, option = {}) => {
     }, {})
     // update cache
     Cache.end(newPair)
-    return {
-      ...res,
-      ...pairFromCache
-    }
+    return Object.assign(res, pairFromCache)
   }
   return {
     upload
