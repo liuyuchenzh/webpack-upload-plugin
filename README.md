@@ -196,6 +196,7 @@ Valid fields shows below:
 - [`onError`]\<Function\<Error>> Called when encounter any error.
 - [`logLocalFiles`]\<Boolean>: Whether to print all uploading file names during the process
 - [`passToCdn`]\<Object>: Extra config to pass to `cdn.upload` method. Something Like `cdn.upload(location, passToCdn)`.
+- [`enableCache`]\<Boolean>: Enable cache to speed up. Default to `false`.
 
 > `src` and `dist` work best with absolute path!
 >
