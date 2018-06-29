@@ -5,7 +5,7 @@ const parallel = require('./utils/parallel.js')
 const name = require('./package.json').name
 const DEFAULT_SEP = '/'
 const FILTER_OUT_DIR = ['.idea', '.vscode', '.gitignore', 'node_modules']
-const SCRIPT_SRC_MATCH = /script\.src\s*=\s*__webpack_require__\.p[^;]+;?/g
+const SCRIPT_SRC_MATCH = /script\.src\s*=\s*__webpack_require__\.p[^\[]+\[(\S+)][^;]*;?/g
 const PUBLIC_PATH_MATCH = /__webpack_require__\.p\s?=\s?([^;]+);/g
 
 /**
@@ -225,9 +225,7 @@ function updateScriptSrc(files, chunkCdnMap) {
     let newContent = content
     // update chunkMap
     if (SCRIPT_SRC_MATCH.test(content)) {
-      const srcAssignStr = `script.src = ${JSON.stringify(
-        chunkCdnMap
-      )}[chunkId];`
+      const srcAssignStr = `script.src = ${JSON.stringify(chunkCdnMap)}[$1];`
       newContent = newContent.replace(SCRIPT_SRC_MATCH, srcAssignStr)
     }
     // update publicPath
