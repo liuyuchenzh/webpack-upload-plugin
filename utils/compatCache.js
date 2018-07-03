@@ -21,13 +21,14 @@ const compatUpload = (cdn, option = {}) => {
   // save option
   Cache.saveOption(option)
   const upload = async files => {
-    const { toUpload, pairFromCache } = files.reduce(
+    const { toUpload, pairFromCache, localHashMap } = files.reduce(
       (last, file) => {
         const fileContent = read(file)
         const hash = Cache.getHash(fileContent)
         if (Cache.shouldUpload(hash)) {
           return Object.assign(last, {
-            toUpload: last.toUpload.concat(file)
+            toUpload: last.toUpload.concat(file),
+            localHashMap: Object.assign(last.localHashMap, { [file]: hash })
           })
         }
         return Object.assign(last, {
@@ -37,6 +38,7 @@ const compatUpload = (cdn, option = {}) => {
         })
       },
       {
+        localHashMap: {},
         toUpload: [],
         pairFromCache: {}
       }
@@ -46,8 +48,7 @@ const compatUpload = (cdn, option = {}) => {
       : await Promise.resolve({})
     // new pair to cache
     const newPair = Object.entries(res).reduce((_, [localPath, cdnUrl]) => {
-      const file = read(localPath)
-      const hash = Cache.getHash(file)
+      const hash = localHashMap[localPath]
       return Cache.update(hash, cdnUrl)
     }, {})
     // update cache
