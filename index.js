@@ -1,7 +1,7 @@
 const fs = require('fs')
 const fse = require('fs-extra')
 const path = require('path')
-const parallel = require('./utils/parallel.js')
+const { parallel, compatCache } = require('y-upload-utils')
 const name = require('./package.json').name
 const DEFAULT_SEP = '/'
 const FILTER_OUT_DIR = ['.idea', '.vscode', '.gitignore', 'node_modules']
@@ -272,7 +272,7 @@ function getIdForChunk(chunkAbsPath, chunkMap) {
  * @param {boolean=} option.logLocalFiles
  * @param {object=} option.passToCdn
  * @param {boolean=} option.enableCache
- * provide information about what the source html directory and compiled html directory
+ * @param {string=} option.cacheLocation
  * @constructor
  */
 function UploadPlugin(cdn, option = {}) {
@@ -295,7 +295,8 @@ UploadPlugin.prototype.apply = function(compiler) {
     waitFor = () => Promise.resolve(true),
     dirtyCheck = false,
     passToCdn,
-    enableCache = false
+    enableCache = false,
+    cacheLocation
   } = this.option
   // get absolute path of src and dist directory
   const srcRoot = resolve(src)
@@ -308,11 +309,19 @@ UploadPlugin.prototype.apply = function(compiler) {
     }
   }
 
+  // log error for cache setup
+  if (!enableCache && cacheLocation) {
+    logErr(`'cacheLocation' provided while haven't set 'enableCache' to true`)
+    logErr(`This won't enable cache`)
+  }
+
   // using cache or not
   const cdn = enableCache
     ? (function() {
-        const cache = require('./utils/compatCache.js')
-        return cache(parallel(rawCdn), passToCdn)
+        return compatCache(parallel(rawCdn), {
+          passToCdn,
+          cacheLocation
+        })
       })()
     : parallel(rawCdn)
 

@@ -197,6 +197,7 @@ Valid fields shows below:
 - [`logLocalFiles`]\<Boolean>: Whether to print all uploading file names during the process
 - [`passToCdn`]\<Object>: Extra config to pass to `cdn.upload` method. Something Like `cdn.upload(location, passToCdn)`.
 - [`enableCache`]\<Boolean>: Enable cache to speed up. Default to `false`.
+- [`cacheLocation`]\<String>: Directory to emit the upload cache file. Use this when you want to manage the cache file by any VCS.
 
 > `src` and `dist` work best with absolute path!
 >
