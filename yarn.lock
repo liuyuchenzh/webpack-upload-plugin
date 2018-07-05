@@ -44,9 +44,9 @@ universalify@^0.1.0:
   version "0.1.2"
   resolved "https://registry.yarnpkg.com/universalify/-/universalify-0.1.2.tgz#b646f69be3942dabcecc9d6639c80dc105efaa66"
 
-y-upload-utils@^1.1.0:
-  version "1.1.0"
-  resolved "https://registry.yarnpkg.com/y-upload-utils/-/y-upload-utils-1.1.0.tgz#c708cdb3931ece8de465a22e2074e74baf12e61f"
+y-upload-utils@^1.2.0:
+  version "1.2.0"
+  resolved "https://registry.yarnpkg.com/y-upload-utils/-/y-upload-utils-1.2.0.tgz#6aecafe220426619c573e01026318f3728da4f3d"
   dependencies:
     fs-extra "^6.0.1"
     md5 "^2.2.1"
