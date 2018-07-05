@@ -317,7 +317,8 @@ UploadPlugin.prototype.apply = function(compiler) {
       if (beforeUpload && typeof beforeUpload === 'function' && !enableCache) {
         files.forEach(file => {
           const content = read(file)
-          write(file)(beforeUpload(content, file))
+          const afterContent = beforeUpload(content, file)
+          if (content !== afterContent) write(file)(afterContent)
         })
       }
       return self.cdn.upload(files, passToCdn)
