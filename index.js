@@ -8,6 +8,11 @@ const FILTER_OUT_DIR = ['.idea', '.vscode', '.gitignore', 'node_modules']
 const SCRIPT_SRC_MATCH = /script\.src\s*=\s*__webpack_require__\.p[^\[]+\[(\S+)][^;]*;?/g
 const PUBLIC_PATH_MATCH = /__webpack_require__\.p\s?=\s?([^;]+);/g
 
+// read file
+const read = location => fs.readFileSync(location, 'utf-8')
+// write file
+const write = location => content => fs.writeFileSync(location, content)
+
 /**
  * log information
  * @param {*} msg
@@ -110,7 +115,7 @@ function simpleReplace(
   distPath = srcPath,
   replaceFn = input => input
 ) {
-  const srcFile = fs.readFileSync(srcPath, 'utf-8')
+  const srcFile = read(srcPath)
   return function savePair(localCdnPair) {
     const ret = localCdnPair.reduce((last, file) => {
       const localPath = normalize(file[0])
@@ -123,7 +128,7 @@ function simpleReplace(
       return last
     }, srcFile)
     fse.ensureFileSync(distPath)
-    fs.writeFileSync(distPath, ret)
+    write(distPath)(ret)
   }
 }
 
@@ -221,7 +226,7 @@ function gatherChunks(chunks, chunkFileName) {
  */
 function updateScriptSrc(files, chunkCdnMap) {
   files.forEach(file => {
-    const content = fs.readFileSync(file, 'utf-8')
+    const content = read(file)
     let newContent = content
     // update chunkMap
     if (SCRIPT_SRC_MATCH.test(content)) {
@@ -235,7 +240,7 @@ function updateScriptSrc(files, chunkCdnMap) {
         `__webpack_require__.p = "";`
       )
     }
-    fs.writeFileSync(file, newContent)
+    write(file)(newContent)
   })
 }
 
@@ -266,6 +271,7 @@ function getIdForChunk(chunkAbsPath, chunkMap) {
  * @param {urlCb=} option.urlCb
  * @param {function=} option.onFinish
  * @param {function=} option.replaceFn
+ * @param {function=} option.beforeUpload
  * @param {string=} option.staticDir
  * @param {function=} option.waitFor
  * @param {boolean=} option.dirtyCheck
@@ -292,6 +298,7 @@ UploadPlugin.prototype.apply = function(compiler) {
     logLocalFiles: logLocal = false,
     staticDir = '',
     replaceFn = input => input,
+    beforeUpload,
     waitFor = () => Promise.resolve(true),
     dirtyCheck = false,
     passToCdn,
@@ -302,10 +309,18 @@ UploadPlugin.prototype.apply = function(compiler) {
   const srcRoot = resolve(src)
   const distRoot = resolve(dist)
   const getLocal2CdnObj = handleCdnRes(urlCb)
+
   // wrap a new cdn object
   const rawCdn = {
-    upload(...args) {
-      return self.cdn.upload(...args, passToCdn)
+    upload(files) {
+      // reason not using default paramter it to reduce IO
+      if (beforeUpload && typeof beforeUpload === 'function' && !enableCache) {
+        files.forEach(file => {
+          const content = read(file)
+          write(file)(beforeUpload(content, file))
+        })
+      }
+      return self.cdn.upload(files, passToCdn)
     }
   }
 
@@ -317,12 +332,11 @@ UploadPlugin.prototype.apply = function(compiler) {
 
   // using cache or not
   const cdn = enableCache
-    ? (function() {
-        return compatCache(parallel(rawCdn), {
-          passToCdn,
-          cacheLocation
-        })
-      })()
+    ? compatCache(parallel(rawCdn), {
+        passToCdn,
+        cacheLocation,
+        beforeUpload
+      })
     : parallel(rawCdn)
 
   compiler.plugin('done', async function(stats) {
