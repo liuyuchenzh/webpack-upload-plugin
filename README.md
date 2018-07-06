@@ -202,7 +202,7 @@ Valid fields shows below:
 
 > `src` and `dist` work best with absolute path!
 >
-> This plugin doesn't work well with `UglifyJs` plugin!
+> This plugin doesn't work well with `UglifyJs` plugin! Use `beforeUpload` if you want to compress anyway.
 >
 > Pay extra attention to your `publicPath` field of `webpack.config.js`, `''` is likely the best choice.
 

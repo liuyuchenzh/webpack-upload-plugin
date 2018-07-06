@@ -219,6 +219,23 @@ function gatherChunks(chunks, chunkFileName) {
 }
 
 /**
+ * whether chunk is common chunk
+ * @param {*} chunk
+ */
+function isCommonChunk(chunk) {
+  const { entrypoints, name } = chunk
+  return entrypoints.length && entrypoints.some(entry => entry.name !== name)
+}
+
+/**
+ * convert object to array
+ * @param {object} obj
+ */
+function convertToArray(obj) {
+  return Object.values(obj)
+}
+
+/**
  * update script.src property for request for dynamic import
  * experimental
  * @param {string[]} files
@@ -250,7 +267,7 @@ function updateScriptSrc(files, chunkCdnMap) {
  * @param {{id: string}} chunkMap
  */
 function getIdForChunk(chunkAbsPath, chunkMap) {
-  return Object.keys(chunkMap).findIndex(
+  return Object.keys(chunkMap).find(
     key => chunkAbsPath.indexOf(chunkMap[key]) > -1
   )
 }
@@ -309,6 +326,20 @@ UploadPlugin.prototype.apply = function(compiler) {
   const srcRoot = resolve(src)
   const distRoot = resolve(dist)
   const getLocal2CdnObj = handleCdnRes(urlCb)
+
+  /**
+   * update chunkMap to {[id: string|number]: cdnUrl}
+   * @param {{[localPath: string]: string}} chunkPairs
+   * @param {{[id: string|number]: string}} chunkMap
+   * @param {*} start
+   */
+  function generateChunkMapToCDN(chunkPairs, chunkMap, start = {}) {
+    return getLocal2CdnObj(chunkPairs).reduce((last, [localPath, cdnPath]) => {
+      const id = getIdForChunk(localPath, chunkMap)
+      last[id] = cdnPath
+      return last
+    }, start)
+  }
 
   // wrap a new cdn object
   const rawCdn = {
@@ -434,23 +465,36 @@ UploadPlugin.prototype.apply = function(compiler) {
       const jsArr = makeArr(js)
       const cssArr = makeArr(css)
       const htmlArr = makeArr(html)
-      const chunkLen = Object.keys(chunkMap).length
-      const chunkArr = Array.from(
-        Object.assign({}, chunkMap, {
-          length: chunkLen
-        })
-      )
+      const chunkArr = convertToArray(chunkMap)
 
-      // find out which js files are chunk chunk, which are not
-      const { notChunkJsArr, chunkArrWAbs } = jsArr.reduce(
+      // gather common chunks
+      const commonChunks = gatherChunks(
+        chunks.filter(isCommonChunk),
+        options.output.chunkFilename
+      )
+      const commonChunksArr = convertToArray(commonChunks)
+
+      // find out which js files are chunk chunk, common chunk, or entry
+      const { notChunkJsArr, chunkArrWAbs, commonChunksWAbs } = jsArr.reduce(
         (last, js) => {
-          const isChunk = chunkArr.some(chunk => js.indexOf(chunk) > -1)
-          isChunk ? last.chunkArrWAbs.push(js) : last.notChunkJsArr.push(js)
+          const isCommonChunk = commonChunksArr.some(
+            chunk => js.indexOf(chunk) > -1
+          )
+          const isChunk =
+            !isCommonChunk && chunkArr.some(chunk => js.indexOf(chunk) > -1)
+          if (isCommonChunk) {
+            last.commonChunksWAbs.push(js)
+          } else if (isChunk) {
+            last.chunkArrWAbs.push(js)
+          } else {
+            last.notChunkJsArr.push(js)
+          }
           return last
         },
         {
           notChunkJsArr: [],
-          chunkArrWAbs: []
+          chunkArrWAbs: [],
+          commonChunksWAbs: []
         }
       )
 
@@ -474,16 +518,17 @@ UploadPlugin.prototype.apply = function(compiler) {
       // upload chunk files
       log('upload chunks...')
       const chunkPairs = await cdn.upload(chunkArrWAbs)
-      // update chunkMap
-      const newChunkMap = getLocal2CdnObj(chunkPairs).reduce(
-        (last, [localPath, cdnPath]) => {
-          const id = getIdForChunk(localPath, chunkMap)
-          last[id] = cdnPath
-          return last
-        },
-        {}
-      )
-
+      // update chunkMap, so far no cdn url for common chunks
+      let newChunkMap = generateChunkMapToCDN(chunkPairs, chunkMap, {})
+      // have common chunks, update chunkMap within it
+      // upload them, so their cdn url can be added to newChunkMap
+      // then entries can be updated with newChunkMap that has cdn url for common chunks
+      if (commonChunksWAbs.length) {
+        updateScriptSrc(commonChunksWAbs, newChunkMap)
+        log('upload common chunks...')
+        const commonChunksPair = await cdn.upload(commonChunksWAbs)
+        newChunkMap = generateChunkMapToCDN(commonChunksPair, chunkMap, {})
+      }
       // if use dirty check, then check all js files for chunkMap
       const manifestList = dirtyCheck ? jsArr : notChunkJsArr
       updateScriptSrc(manifestList, newChunkMap)
