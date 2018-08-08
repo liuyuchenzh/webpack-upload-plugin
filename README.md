@@ -199,6 +199,7 @@ Valid fields shows below:
 - [`passToCdn`]\<Object>: Extra config to pass to `cdn.upload` method. Something Like `cdn.upload(location, passToCdn)`.
 - [`enableCache`]\<Boolean>: Enable cache to speed up. Default to `false`.
 - [`cacheLocation`]\<String>: Directory to emit the upload cache file. Use this when you want to manage the cache file by any VCS.
+- [`sliceLimit`]\<Number>: Uploading files is not done by once. Using `sliceLimit` you can limit the number of files being uploaded at the same time.
 
 > `src` and `dist` work best with absolute path!
 >

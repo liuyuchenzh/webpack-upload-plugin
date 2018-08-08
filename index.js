@@ -1,7 +1,11 @@
 const fs = require('fs')
 const fse = require('fs-extra')
 const path = require('path')
-const { parallel, compatCache } = require('y-upload-utils')
+const {
+  parallel,
+  compatCache,
+  beforeUpload: beforeProcess
+} = require('y-upload-utils')
 const name = require('./package.json').name
 const DEFAULT_SEP = '/'
 const FILTER_OUT_DIR = ['.idea', '.vscode', '.gitignore', 'node_modules']
@@ -296,6 +300,7 @@ function getIdForChunk(chunkAbsPath, chunkMap) {
  * @param {object=} option.passToCdn
  * @param {boolean=} option.enableCache
  * @param {string=} option.cacheLocation
+ * @param {number=} option.sliceLimit
  * @constructor
  */
 function UploadPlugin(cdn, option = {}) {
@@ -320,7 +325,8 @@ UploadPlugin.prototype.apply = function(compiler) {
     dirtyCheck = false,
     passToCdn,
     enableCache = false,
-    cacheLocation
+    cacheLocation,
+    sliceLimit
   } = this.option
   // get absolute path of src and dist directory
   const srcRoot = resolve(src)
@@ -344,14 +350,6 @@ UploadPlugin.prototype.apply = function(compiler) {
   // wrap a new cdn object
   const rawCdn = {
     upload(files) {
-      // reason not using default paramter it to reduce IO
-      if (beforeUpload && typeof beforeUpload === 'function' && !enableCache) {
-        files.forEach(file => {
-          const content = read(file)
-          const afterContent = beforeUpload(content, file)
-          if (content !== afterContent) write(file)(afterContent)
-        })
-      }
       return self.cdn.upload(files, passToCdn)
     }
   }
@@ -362,14 +360,20 @@ UploadPlugin.prototype.apply = function(compiler) {
     logErr(`This won't enable cache`)
   }
 
-  // using cache or not
-  const cdn = enableCache
-    ? compatCache(parallel(rawCdn), {
+  // wrap with parallel
+  const paralleledCdn = parallel(rawCdn, { sliceLimit })
+
+  // wrap with cache
+  const wrappedCdn = enableCache
+    ? compatCache(paralleledCdn, {
         passToCdn,
-        cacheLocation,
-        beforeUpload
+        cacheLocation
       })
-    : parallel(rawCdn)
+    : paralleledCdn
+
+  // wrap with beforeProcess
+  // use beforeUpload properly
+  const cdn = beforeProcess(wrappedCdn, beforeUpload)
 
   compiler.plugin('done', async function(stats) {
     try {
