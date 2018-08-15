@@ -381,7 +381,7 @@ UploadPlugin.prototype.apply = function(compiler) {
       await waitFor()
       const { chunks, options } = stats.compilation
       const {
-        output: { publicPath }
+        output: { publicPath = '' }
       } = options
       // don't want to use publicPath since about to use cdn url
       const removePublicPath = handlePublicPath(publicPath)
@@ -538,7 +538,7 @@ UploadPlugin.prototype.apply = function(compiler) {
       updateScriptSrc(manifestList, newChunkMap)
 
       // concat js + css + img
-      const adjustedFiles = [...manifestList, ...cssArr, ...imgArr]
+      const adjustedFiles = [...manifestList, ...cssArr]
       // if provide with src
       // then use it
       // or use emitted html files
@@ -553,12 +553,14 @@ UploadPlugin.prototype.apply = function(compiler) {
       log('upload js and css...')
       logLocal && console.log(adjustedFiles)
       const jsCssLocal2CdnObj = await cdn.upload(adjustedFiles)
+      // reuse image result here
+      const allLocal2CdnObj = Object.assign(jsCssLocal2CdnObj, imgAndFontPairs)
       tplFiles.forEach(filePath => {
         simpleReplace(
           filePath,
           mapSrcToDist(filePath, srcRoot, distRoot),
           refinedReplaceFn
-        )(getLocal2CdnObj(jsCssLocal2CdnObj))
+        )(getLocal2CdnObj(allLocal2CdnObj))
       })
       // run onFinish if it is a valid function
       onFinish()
