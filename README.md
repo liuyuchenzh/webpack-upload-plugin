@@ -187,24 +187,159 @@ module.exports = {
 
 `option` is optional.
 
-Valid fields shows below:
+Valid fields for `option` are showed below:
 
-- [`src`]\<String>: Where your valid template files would appear (with reference to local js/css files). Default to be where html files would be emitted to based on your webpack configuration.
-- [`dist`]\<String>: Where to emit final template files. Only use this when there is a need to separate origin outputs with cdn ones. Default to be same as `src`.
-- [`urlCb`]\<Function(String)>: Adjust cdn url accordingly. Cdn url would be passed in, and you need to return a string.
-- [`resolve`]\<Array\<String>>: Type of templates needed to match. In case you have a project with php, smarty, or other template language instead of html. Default to `['html']`
-- [`staticDir`]\<String>: If static files emitted by webpack is not what you want, or not enough(normally when you copy all resources to another directory), then set `staticDir` to the directory that contains all your desired resource files.
-- [`beforeUpload`]\<Function(String, String)>: _Compression_ can be done here. Two arguments are file content and file location (with extension name of course). You need to return the compression result as string.
-- [`replaceFn`]\<Function(String, String)>: For some complex projects, you may have multiple `publicPath` or corresponding concepts. To handle such cases accordingly, you can pass a `replaceFn` function, which will receive two parameters, which are `parsing content` and `file path` in that order. `parsing content` would be file in string format with local resources reference. `file path` is the location of `parsing content` on your file system. This function will be called when plugin start to replace reference. The string `replaceFn` return will represent the new desired content, which will be used as the input template to replace all local reference with cdn ones.
-- [`waitFor`]\<Function\<Promise\<\*>>>: A function that returns a Promise. The plugin will wait for the Promise to resolve and then start everything.
-- [`dirtyCheck`]\<Boolean>: For cases where chunk file can also be entry file, set `dirtyCheck` to `true` to make sure entry file would be updated properly.
-- [`onFinish`]\<Function>: Called when everything finished. You can further play with files here.
-- [`onError`]\<Function\<Error>> Called when encounter any error.
-- [`logLocalFiles`]\<Boolean>: Whether to print all uploading file names during the process
-- [`passToCdn`]\<Object>: Extra config to pass to `cdn.upload` method. Something Like `cdn.upload(location, passToCdn)`.
-- [`enableCache`]\<Boolean>: Enable cache to speed up. Default to `false`.
-- [`cacheLocation`]\<String>: Directory to emit the upload cache file. Use this when you want to manage the cache file by any VCS.
-- [`sliceLimit`]\<Number>: Uploading files is not done by once. Using `sliceLimit` you can limit the number of files being uploaded at the same time.
+### [`src`]: string
+
+Where your valid raw template files would appear (with reference to local js/css files). Default to be where html files would be emitted to based on your webpack configuration.
+
+For templates not dynamically emitted by webpack, eg, files like `php`, `tpl`, `phtml` and so on that are managed by some server logic not client one, this field could be used.
+
+> Use _absolute_ path
+
+### [`dist`]: string
+
+Where to emit final template files. Only use this when there is a need to separate origin outputs with cdn ones. Default to be same as `src`.
+
+Think in this way:
+
+template from src -> template with cdn reference -> template to dist
+
+Use `dist` only if the third step is needed.
+
+> Use _absolute_ path
+
+### [`urlCb`]: (cdnUrl: string) => string
+
+Adjust cdn url accordingly. Cdn url would be passed in, and you need to return a string.
+
+```js
+const url = 'http://domain.com/cdn/bundle.js'
+const urlCb = input => input.replace(/^https?/, 'https')
+```
+
+### [`resolve`]: string[]
+
+Type of templates needed to match. In case you have a project with php, smarty, or other template language instead of html. Default to `['html']`
+
+Again, for projects using server language template, like `php`, you could set `resolve` to `['php', 'phtml']`
+
+### [`staticDir`]: string | string[]
+
+If static files (js/css/images etc) emitted by webpack is not what you want, or not enough(normally happens when you need to copy all resources emitted by webpack to another directory), then set `staticDir` to the directory that contains all your desired resource files (js/css/images etc).
+
+> Use _absolute_ path
+
+### [`beforeUpload`]: (fileContent: string, fileLocation: string) => string
+
+_Compression_ can be done here. Two arguments are `fileContent` and `fileLocation` (with extension name of course). You need to return the compression result as string.
+
+```js
+// if you want to compress js before upload
+const UglifyJs = require('uglify-js')
+const path = require('path')
+const beforeUpload = (content, location) => {
+  if (path.extname(location) === '.js') {
+    return UglifyJs.minify(content).code
+  }
+  return content
+}
+```
+
+### [`replaceFn`]: (fileContent: string, location: string) => string
+
+For some complex (ancient) projects, you may have multiple `publicPath` or corresponding concepts. To handle such cases accordingly, you can pass a `replaceFn` function, which will receive two parameters, which are `fileContent` and `location` in that order. `fileContent` would be file in string format with local resources reference. `location` is the location of `fileContent` on your file system. This function will be called when plugin start to replace local reference. The string `replaceFn` returns will represent the desired `publicPath`, which will be used as the input template to replace all local reference with cdn ones.
+
+```js
+// in your latest webpack.config.js
+module.exports = {
+  output {
+    publicPath: 'public/static'
+  }
+}
+```
+
+```html
+<!-- in an ancient template file -->
+<!-- bundle.js is actually emitted by webpack -->
+<!-- but this src cannot be changed due to some weird reason -->
+<!-- however public/static is the new publicPath -->
+<script src="public/js/bundle.js"></script>
+```
+
+In such case:
+
+```js
+const replaceFn = (content, location) => {
+  const oldPublicReg = /src="public\/js/
+  if (oldPublicReg.test(content)) {
+    return content.replace(oldPublicReg, `src="public/static"`)
+  }
+}
+```
+
+### [`waitFor`]: () => Promise<\*>
+
+A function that returns a Promise. The plugin will wait for the Promise to resolve and then start everything.
+
+```js
+// things won't start till 1000ms later
+const waitFor = new Promise(resolve => {
+  setTimeout(resolve, 1000)
+})
+```
+
+### [`dirtyCheck`]: boolean
+
+For cases where chunk file can also be entry file, set `dirtyCheck` to `true` to make sure entry file would be updated properly.
+
+### [`onFinish`]: () => any
+
+Called when everything finished. You can further play with files here.
+
+```js
+const onFinish = () => {
+  console.log('just want to print this')
+}
+```
+
+### [`onError`]: (e: Error) => any
+
+Called when encounter any error.
+
+### [`logLocalFiles`]: boolean
+
+Whether to print all uploading file names during the process
+
+### [`passToCdn`]: object
+
+Extra config to pass to `cdn.upload` method. Something Like `cdn.upload(location, passToCdn)`.
+
+```js
+// if your original cdn package has API like this
+const cdn = require('some-cdn-package')
+const passToCdn = {
+  https: true
+}
+cdn.upload(files, passToCdn)
+```
+
+### [`enableCache`]: boolean
+
+Enable cache to speed up. Default to `false`.
+
+### [`cacheLocation`]: string
+
+Directory to emit the upload cache file. Use this when you want to manage the cache file by any VCS.
+
+```js
+const path = require('path')
+const cacheLocation = path.resolve(__dirname, 'cacheDirectory')
+```
+
+### [`sliceLimit`]: number
+
+Uploading files is not done by once. Using `sliceLimit` you can limit the number of files being uploaded at the same time.
 
 > `src` and `dist` work best with absolute path!
 >
