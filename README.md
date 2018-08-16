@@ -1,11 +1,12 @@
 ## Intro
 
-This is a plugin for [webpack](https://github.com/webpack/webpack).<br>
-The main aim is to provide a tool to upload js/css files used in html to cdn, and then replace the reference with the corresponding cdn url.<br>
+This is a plugin for [webpack](https://github.com/webpack/webpack).
+
+The main aim is to provide a tool to upload js/css files used in html to cdn, and then replace the reference with the corresponding cdn url.
 
 ## Environment requirement
 
-node >= 7.4.0<br>
+node >= 7.4.0
 
 ## Install
 
@@ -15,9 +16,13 @@ npm i -D webpack-upload-plugin
 
 ## Notice
 
-This plugin does not provide a service as uploading to cdn.<br>
-In fact, it actually depends on such service.<br>
-This plugin is for webpack >= 3.
+This plugin does not provide a service as uploading to cdn.
+
+In fact, it actually depends on such service.
+
+This plugin is for webpack >= 2.
+
+This plugin _doesn't_ work well with `UglifyJs` plugin! Use `beforeUpload` if you want to compress anyway.
 
 ## Dependency
 
@@ -202,8 +207,6 @@ Valid fields shows below:
 - [`sliceLimit`]\<Number>: Uploading files is not done by once. Using `sliceLimit` you can limit the number of files being uploaded at the same time.
 
 > `src` and `dist` work best with absolute path!
->
-> This plugin doesn't work well with `UglifyJs` plugin! Use `beforeUpload` if you want to compress anyway.
 >
 > Pay extra attention to your `publicPath` field of `webpack.config.js`, `''` is likely the best choice.
 
