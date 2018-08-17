@@ -342,7 +342,7 @@ const cacheLocation = path.resolve(__dirname, 'cacheDirectory')
 
 ### [`sliceLimit`]: number
 
-Uploading files is not done by once. Using `sliceLimit` you can limit the number of files being uploaded at the same time.
+Uploading files is not done by once. By using `sliceLimit`, you can limit the number of files being uploaded at once.
 
 > `src` and `dist` work best with absolute path!
 >
