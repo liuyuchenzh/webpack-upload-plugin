@@ -262,12 +262,13 @@ module.exports = {
 ```html
 <!-- in an ancient template file -->
 <!-- bundle.js is actually emitted by webpack -->
-<!-- but this src cannot be changed due to some weird reason -->
-<!-- however public/static is the new publicPath -->
+<!-- but some copy action involved in later sometime -->
+<!-- public/static/bundle.js -> public/js/bundle.js -->
+<!-- but this src attribute cannot be changed due to some weird reason -->
 <script src="public/js/bundle.js"></script>
 ```
 
-In such case:
+In such case, `staticDir` could be useful. Or you can use `replaceFn` as followed:
 
 ```js
 const replaceFn = (content, location) => {
@@ -277,6 +278,8 @@ const replaceFn = (content, location) => {
   }
 }
 ```
+
+In this way, `public/static/bundle.js` will be uploaded before it get moved to `public/js`, and the reference replacement stay accurate.
 
 ### [`waitFor`]: () => Promise<\*>
 
