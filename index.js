@@ -213,11 +213,20 @@ function isImg(path) {
 function gatherChunks(chunks, chunkFileName) {
   return chunks.reduce((last, chunk) => {
     const { id, name, hash, renderedHash } = chunk
+    // handle slice properly
+    const handleLen = source => (match, len) => {
+      if (len) {
+        return source.slice(0, +len.slice(1))
+      }
+      return match
+    }
+    const handleHash = handleLen(hash)
+    const handleChunkHash = handleLen(renderedHash)
     last[id] = chunkFileName
       .replace(/\[name]/g, name)
       .replace(/\[id]/g, id)
-      .replace(/\[hash]/g, hash)
-      .replace(/\[chunkhash]/g, renderedHash)
+      .replace(/\[hash(:\d+)?]/g, handleHash)
+      .replace(/\[chunkhash(:\d+)?]/g, handleChunkHash)
     return last
   }, {})
 }
