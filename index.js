@@ -559,7 +559,12 @@ UploadPlugin.prototype.apply = function(compiler) {
         )
       }
       // if use dirty check, then check all js files for chunkMap
-      const manifestList = dirtyCheck ? jsArr : notChunkJsArr
+      // since webpack@4, every js is chunk
+      // so only filter out common/entry chunks since they should be updated
+      // and uploaded right above
+      const manifestList = dirtyCheck
+        ? jsArr
+        : jsArr.filter(js => !commonChunksWAbs.includes(js))
       updateScriptSrc(manifestList, newChunkMap)
 
       // concat js + css + img
