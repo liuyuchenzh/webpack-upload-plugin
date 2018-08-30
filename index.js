@@ -10,7 +10,8 @@ const name = require('./package.json').name
 const DEFAULT_SEP = '/'
 const FILTER_OUT_DIR = ['.idea', '.vscode', '.gitignore', 'node_modules']
 const PUBLIC_PATH_MATCH = /__webpack_require__\.p\s?=\s?([^;]+);/g
-const SCRIPT_MATCH = /__webpack_require__\.p\s?\+[^\[]+\[(\S+)][\s\S]+?\.js['"];?/g
+const getScriptRegExp = () =>
+  /__webpack_require__\.p\s?\+[^\[]+\[(\S+)][\s\S]+?\.js['"];?/g
 
 // read file
 const read = location => fs.readFileSync(location, 'utf-8')
@@ -246,7 +247,7 @@ function gatherChunks(chunks, chunkFileName) {
 
 function isEntryChunk(js) {
   const content = read(js)
-  return SCRIPT_MATCH.test(content)
+  return getScriptRegExp().test(content)
 }
 
 /**
@@ -268,9 +269,9 @@ function updateScriptSrc(files, chunkCdnMap) {
     const content = read(file)
     let newContent = content
     // update chunkMap
-    if (SCRIPT_MATCH.test(content)) {
+    if (getScriptRegExp().test(content)) {
       const srcAssignStr = `${JSON.stringify(chunkCdnMap)}[$1];`
-      newContent = newContent.replace(SCRIPT_MATCH, srcAssignStr)
+      newContent = newContent.replace(getScriptRegExp(), srcAssignStr)
     }
     // update publicPath
     if (PUBLIC_PATH_MATCH.test(content)) {
