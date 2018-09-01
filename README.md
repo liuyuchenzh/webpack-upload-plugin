@@ -22,6 +22,8 @@ In fact, it actually depends on such service.
 
 This plugin is for webpack >= 2.
 
+For webpack@4, set `mode` to `'none'`!
+
 This plugin _doesn't_ work well with `UglifyJs` plugin! Use `beforeUpload` if you want to compress anyway.
 
 ## Dependency
@@ -105,6 +107,7 @@ module.exports = {
       }
     ]
   },
+  mode: 'none', // important! important! important!
   plugins: [
     new MiniCssExtractPlugin({
       filename: '[name].css',
@@ -121,6 +124,8 @@ module.exports = {
 ```
 
 > For webpack v3 users, use `extract-text-webpack-plugin` instead of `mini-css-extract-plugin`
+>
+> For webpack v4 users, you can add missing plugins back manually. See details [here](https://webpack.js.org/concepts/mode/#usage)
 
 ### Complex one with Server Template
 
