@@ -1,6 +1,6 @@
 {
   "name": "webpack-upload-plugin",
-  "version": "0.14.3",
+  "version": "0.14.4",
   "description": "webpack-upload-plugin, webpack plugin",
   "main": "index.js",
   "scripts": {
