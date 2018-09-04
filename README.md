@@ -214,7 +214,7 @@ Use `dist` only if the third step is needed.
 
 > Use _absolute_ path
 
-### [`urlCb`]: (cdnUrl: string) => string
+### [`urlCb`]: (cdnUrl: string, localPath: string) => string
 
 Adjust cdn url accordingly. Cdn url would be passed in, and you need to return a string.
 
