@@ -6,7 +6,7 @@ const {
   compatCache,
   beforeUpload: beforeProcess
 } = require('y-upload-utils')
-const name = require('./package.json').name
+const pjName = require('./package.json').name
 const DEFAULT_SEP = '/'
 const FILTER_OUT_DIR = ['.idea', '.vscode', '.gitignore', 'node_modules']
 const PUBLIC_PATH_MATCH = /__webpack_require__\.p\s?=\s?([^;]+);/g
@@ -23,7 +23,7 @@ const write = location => content => fs.writeFileSync(location, content)
  * @param {*} msg
  */
 function log(msg) {
-  console.log(`[${name}]: ${msg}`)
+  console.log(`[${pjName}]: ${msg}`)
 }
 
 /**
@@ -31,7 +31,7 @@ function log(msg) {
  * @param msg
  */
 function logErr(msg) {
-  console.error(`[${name}]: ${msg}`)
+  console.error(`[${pjName}]: ${msg}`)
 }
 
 // remove publicPath from reference
@@ -181,7 +181,8 @@ const handleCdnRes = cb => entries => {
   const target = isArr ? entries : Object.entries(entries)
   return target.map(pair => {
     // pair[1] should be cdn url
-    pair[1] = cb(pair[1])
+    // pass local path as well
+    pair[1] = cb(pair[1], pair[0])
     if (typeof pair[1] !== 'string')
       logErr(`the return result of urlCb is not string`)
     return pair
@@ -215,7 +216,7 @@ function gatherChunks(chunks, chunkFileName) {
   return chunks.reduce((last, chunk) => {
     if (/\[hash(:\d+)?]/.test(chunkFileName)) {
       throw new Error(
-        `[${name}]: Do NOT use [hash] as output filename! Use [chunkhash] or [contenthash] instead`
+        `[${pjName}]: Do NOT use [hash] as output filename! Use [chunkhash] or [contenthash] instead`
       )
     }
     const { id, name, renderedHash, contentHash } = chunk
