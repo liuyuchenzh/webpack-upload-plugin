@@ -197,7 +197,8 @@ const imgTypeArr = ['jpg', 'jpeg', 'png', 'gif', 'webp']
 const fontTypeArr = ['woff', 'woff2', 'ttf', 'oft', 'svg', 'eot']
 const isCss = isType('css')
 const isJs = isType('js')
-const isHTML = isType('html')
+const isOneOfType = (types = ['']) => file =>
+  types.some(type => isType(type)(file))
 
 function isFont(path) {
   return fontTypeArr.some(type => isType(type)(path))
@@ -309,12 +310,12 @@ function getIdForChunk(chunkAbsPath, chunkMap) {
  * @param {object} option
  * @param {string=} option.src
  * @param {string=} option.dist
- * @param {urlCb=} option.urlCb
+ * @param {(function(string, string=) => string)=} option.urlCb
  * @param {function=} option.onFinish
- * @param {function=} option.replaceFn
- * @param {function=} option.beforeUpload
- * @param {string=} option.staticDir
- * @param {function=} option.waitFor
+ * @param {(function(string, string=) => string)=} option.replaceFn
+ * @param {(function(string, string) => string)=} option.beforeUpload
+ * @param {(string|string[])=} option.staticDir
+ * @param {(function() => Promise<*>)=} option.waitFor
  * @param {boolean=} option.dirtyCheck
  * @param {boolean=} option.logLocalFiles
  * @param {object=} option.passToCdn
@@ -352,6 +353,7 @@ UploadPlugin.prototype.apply = function(compiler) {
   const srcRoot = resolve(src)
   const distRoot = resolve(dist)
   const getLocal2CdnObj = handleCdnRes(urlCb)
+  const isTemplate = isOneOfType(resolveList)
 
   /**
    * update chunkMap to {[id: string|number]: cdnUrl}
@@ -429,16 +431,19 @@ UploadPlugin.prototype.apply = function(compiler) {
           }
         : gatherFileIn(staticDir)
       const manualAssets = staticDir
-        ? [...imgTypeArr, ...fontTypeArr, 'css', 'js'].reduce((last, type) => {
-            const files = gatherManualAssets(type)
-            return files.reduce((fileLast, file) => {
-              return Object.assign(fileLast, {
-                [file]: {
-                  existsAt: file
-                }
-              })
-            }, last)
-          }, {})
+        ? [...imgTypeArr, ...fontTypeArr, 'css', 'js', ...resolveList].reduce(
+            (last, type) => {
+              const files = gatherManualAssets(type)
+              return files.reduce((fileLast, file) => {
+                return Object.assign(fileLast, {
+                  [file]: {
+                    existsAt: file
+                  }
+                })
+              }, last)
+            },
+            {}
+          )
         : {}
       // here we get chunks needs to be dealt with
       const chunkMap = gatherChunks(chunks, options.output.chunkFilename)
@@ -460,7 +465,7 @@ UploadPlugin.prototype.apply = function(compiler) {
             last.js[name] = assetInfo
           } else if (isFont(location)) {
             last.font[name] = assetInfo
-          } else if (isHTML(location)) {
+          } else if (isTemplate(location)) {
             last.html[name] = assetInfo
           }
           return last
@@ -476,6 +481,15 @@ UploadPlugin.prototype.apply = function(compiler) {
 
       const { img, css, js, font, html } = desireAssets
 
+      // warning if no template found but staticDir set
+      if (staticDir && !Object.keys(html).length && !src) {
+        log('WARNING!')
+        log(
+          "staticDir is set but haven't found any template files in those directories"
+        )
+        log('Try to use src filed to include your template files')
+      }
+
       // make assets object to array with local path
       function makeArr(input) {
         return Object.keys(input).map(name => {
@@ -490,12 +504,6 @@ UploadPlugin.prototype.apply = function(compiler) {
       const cssArr = makeArr(css)
       const htmlArr = makeArr(html)
       const chunkArr = convertToArray(chunkMap)
-
-      // gather common chunks
-      // const commonChunks = gatherChunks(
-      //   chunks.filter(isCommonChunk),
-      //   options.output.chunkFilename
-      // )
       const commonChunksArr = jsArr.filter(isEntryChunk)
 
       // find out which js files are chunk chunk, common chunk, or entry
