@@ -113,12 +113,14 @@ function generateLocalPathReg(localPath) {
  * @param {string} srcPath
  * @param {string=} distPath
  * @param {function=} replaceFn
+ * @param {boolean=} [copyWhenUntouched=true] copy file even if the content remains the same
  * @return {function}
  */
 function simpleReplace(
   srcPath,
   distPath = srcPath,
-  replaceFn = input => input
+  replaceFn = input => input,
+  copyWhenUntouched = true
 ) {
   const srcFile = read(srcPath)
   return function savePair(localCdnPair) {
@@ -132,8 +134,13 @@ function simpleReplace(
       )
       return last
     }, srcFile)
-    fse.ensureFileSync(distPath)
-    write(distPath)(ret)
+    // no such path > force copy > content change
+    const toCopy =
+      !fs.existsSync(distPath) || copyWhenUntouched || ret !== srcFile
+    if (toCopy) {
+      fse.ensureFileSync(distPath)
+      write(distPath)(ret)
+    }
   }
 }
 
@@ -322,6 +329,7 @@ function getIdForChunk(chunkAbsPath, chunkMap) {
  * @param {boolean=} option.enableCache
  * @param {string=} option.cacheLocation
  * @param {number=} option.sliceLimit
+ * @param {boolean=} option.forceCopyTemplate
  * @constructor
  */
 function UploadPlugin(cdn, option = {}) {
@@ -347,7 +355,8 @@ UploadPlugin.prototype.apply = function(compiler) {
     passToCdn,
     enableCache = false,
     cacheLocation,
-    sliceLimit
+    sliceLimit,
+    forceCopyTemplate
   } = this.option
   // get absolute path of src and dist directory
   const srcRoot = resolve(src)
@@ -604,7 +613,8 @@ UploadPlugin.prototype.apply = function(compiler) {
         simpleReplace(
           filePath,
           mapSrcToDist(filePath, srcRoot, distRoot),
-          refinedReplaceFn
+          refinedReplaceFn,
+          forceCopyTemplate
         )(getLocal2CdnObj(allLocal2CdnObj))
       })
       // run onFinish if it is a valid function

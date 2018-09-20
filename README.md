@@ -349,8 +349,12 @@ const cacheLocation = path.resolve(__dirname, 'cacheDirectory')
 
 Uploading files is not done by once. By using `sliceLimit`, you can limit the number of files being uploaded at once.
 
-> `src` and `dist` work best with absolute path!
->
+### [`forceCopyTemplate=true`]: boolean
+
+Force to copy generated templates from `src` to `dist` even if no cdn Url has been matched. Default to `true`.
+
+> When set to `false`, the generated templates will still be copied from `src` to `dist` as long as if no corresponding file exists in `dist`.
+
 > Pay extra attention to your `publicPath` field of `webpack.config.js`, `''` is likely the best choice.
 
 Viola! That's all : )
