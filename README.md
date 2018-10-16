@@ -16,15 +16,11 @@ npm i -D webpack-upload-plugin
 
 ## Notice
 
-This plugin does not provide a service as uploading to cdn.
-
-In fact, it actually depends on such service.
-
-This plugin is for webpack >= 2.
-
-For webpack@4, set `mode` to `'none'`!
-
-This plugin _doesn't_ work well with `UglifyJs` plugin! Use `beforeUpload` if you want to compress anyway.
+- This plugin does not provide a service as uploading to cdn. In fact, it actually depends on such service.
+- This plugin is for webpack >= 2.
+- For webpack@4, set `mode` to `'none'`!
+- This plugin _doesn't_ work well with `UglifyJs` plugin! Use `beforeUpload` if you want to compress anyway.
+- Pay extra attention to your `publicPath` field of `webpack.config.js`, `''` is likely the best choice.
 
 ## Dependency
 
@@ -96,7 +92,7 @@ module.exports = {
       },
       {
         test: /\.css$/,
-        use: ['style-loader', 'css-loader']
+        use: [MiniCssExtractPlugin.loader, 'css-loader']
       },
       {
         test: /\.(png|jpe?g|gif|svg)(\?.*)?$/,
@@ -354,8 +350,6 @@ Uploading files is not done by once. By using `sliceLimit`, you can limit the nu
 Force to copy generated templates from `src` to `dist` even if no cdn Url has been matched. Default to `true`.
 
 > When set to `false`, the generated templates will still be copied from `src` to `dist` as long as if no corresponding file exists in `dist`.
-
-> Pay extra attention to your `publicPath` field of `webpack.config.js`, `''` is likely the best choice.
 
 Viola! That's all : )
 
