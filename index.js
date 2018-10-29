@@ -200,7 +200,7 @@ function mapSrcToDist(srcFilePath, srcRoot, distRoot) {
   return srcFilePath.replace(srcRoot, distRoot)
 }
 
-const imgTypeArr = ['jpg', 'jpeg', 'png', 'gif', 'webp']
+const imgTypeArr = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'ico']
 const fontTypeArr = ['woff', 'woff2', 'ttf', 'oft', 'svg', 'eot']
 const isCss = isType('css')
 const isJs = isType('js')
