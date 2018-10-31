@@ -278,6 +278,9 @@ function convertToArray(obj) {
  * @param {{id: string}} chunkCdnMap
  */
 function updateScriptSrc(files, chunkCdnMap) {
+  // if no new map was formed, then keep the way it is
+  const len = Object.keys(chunkCdnMap).length
+  if (!len) return
   files.forEach(file => {
     const content = read(file)
     let newContent = content
@@ -320,9 +323,16 @@ function updateCssLoad(files, cssMap) {
         // convert to {[chunkId]: href} structure
         const cssChunkIdCdnMap = hrefArr.reduce((last, { chunkId, href }) => {
           const localIndex = keys.findIndex(key => key.indexOf(href) > -1)
+          if (localIndex < 0) {
+            return last
+          }
           last[chunkId] = cssMap[localIndex][1]
           return last
         }, {})
+        // cannot form new Map, return the original one
+        if (!Object.keys(cssChunkIdCdnMap).length) {
+          return hrefMatch
+        }
         const newCssMap = JSON.stringify(cssChunkIdCdnMap)
         return `var href = ${newCssMap}[chunkId];`
       })
