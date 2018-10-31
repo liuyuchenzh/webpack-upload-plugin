@@ -12,6 +12,8 @@ const FILTER_OUT_DIR = ['.idea', '.vscode', '.gitignore', 'node_modules']
 const PUBLIC_PATH_MATCH = /__webpack_require__\.p\s?=\s?([^;]+);/g
 const getScriptRegExp = () =>
   /__webpack_require__\.p\s?\+[^\[]+\[(\S+)][\s\S]+?\.js['"];?/g
+const getCssChunksRegExp = () => /var\scssChunks\s*=\s*([^;\n]+);/
+const getCssHrefRegExp = () => /var\shref\s*=[^\n]+?chunkId[^\n;]+;/
 
 // read file
 const read = location => fs.readFileSync(location, 'utf-8')
@@ -39,6 +41,7 @@ const handlePublicPath = publicPath => content => {
   // match strictly
   const regStr = publicPath
     .split(DEFAULT_SEP)
+    .filter(item => !!item)
     .map(part => {
       if (/\./.test(part)) {
         return part.replace(/\.+/g, match =>
@@ -128,6 +131,7 @@ function simpleReplace(
       const localPath = normalize(file[0])
       const cdnPath = file[1]
       const localPathReg = generateLocalPathReg(localPath)
+
       last = replaceFn(last, srcPath).replace(
         localPathReg,
         (_, prefix) => `${prefix}${cdnPath}`
@@ -293,6 +297,41 @@ function updateScriptSrc(files, chunkCdnMap) {
   })
 }
 
+function updateCssLoad(files, cssMap) {
+  const keys = cssMap.map(([local]) => local)
+  files.forEach(file => {
+    const content = read(file)
+    let newContent = content
+    const match = content.match(getCssChunksRegExp())
+    if (match) {
+      const [_, map] = match
+      newContent = newContent.replace(getCssHrefRegExp(), hrefMatch => {
+        // get the new cssMap with {chunkId, href} structure
+        // where chunkId is the id for the css file, and href is the cdn url
+        const fnBody = `
+            const map = ${map};
+            return Object.keys(map).map(chunkId => {
+              ${hrefMatch};
+              href = href.replace(/^\\./, "");
+              return {chunkId, href};
+            })
+          `
+        const hrefArr = new Function(fnBody)()
+        // convert to {[chunkId]: href} structure
+        const cssChunkIdCdnMap = hrefArr.reduce((last, { chunkId, href }) => {
+          const localIndex = keys.findIndex(key => key.indexOf(href) > -1)
+          last[chunkId] = cssMap[localIndex][1]
+          return last
+        }, {})
+        const newCssMap = JSON.stringify(cssChunkIdCdnMap)
+        return `var href = ${newCssMap}[chunkId];`
+      })
+      // update js entry file with new cssMap
+      write(file)(newContent)
+    }
+  })
+}
+
 /**
  * get id of chunk given a absolute path of chunk file and id:chunk map
  * @param {string} chunkAbsPath
@@ -323,13 +362,14 @@ function getIdForChunk(chunkAbsPath, chunkMap) {
  * @param {(function(string, string) => string)=} option.beforeUpload
  * @param {(string|string[])=} option.staticDir
  * @param {(function() => Promise<*>)=} option.waitFor
- * @param {boolean=} option.dirtyCheck
+ * @param {boolean=} [option.dirtyCheck=false]
  * @param {boolean=} option.logLocalFiles
  * @param {object=} option.passToCdn
- * @param {boolean=} option.enableCache
+ * @param {boolean=} [option.enableCache=false]
  * @param {string=} option.cacheLocation
- * @param {number=} option.sliceLimit
+ * @param {number=} [option.sliceLimit=10]
  * @param {boolean=} option.forceCopyTemplate
+ * @param {boolean=} [option.asyncCSS=false]
  * @constructor
  */
 function UploadPlugin(cdn, option = {}) {
@@ -356,7 +396,8 @@ UploadPlugin.prototype.apply = function(compiler) {
     enableCache = false,
     cacheLocation,
     sliceLimit,
-    forceCopyTemplate
+    forceCopyTemplate,
+    asyncCSS = false
   } = this.option
   // get absolute path of src and dist directory
   const srcRoot = resolve(src)
@@ -412,8 +453,18 @@ UploadPlugin.prototype.apply = function(compiler) {
       await waitFor()
       const { chunks, options } = stats.compilation
       const {
-        output: { publicPath = '' }
+        output: { publicPath = '' },
+        mode
       } = options
+      // early warning
+      if (mode && mode !== 'none') {
+        log("WARNING! Set the mode to 'none' to make it works!")
+      }
+      if (publicPath) {
+        log(
+          'WARNING! publicPath is not empty, the plugin will try to handle it for you. But it is preferred to toggle it by yourself!'
+        )
+      }
       // don't want to use publicPath since about to use cdn url
       const removePublicPath = handlePublicPath(publicPath)
       // actual replaceFn that gonna be used
@@ -544,7 +595,7 @@ UploadPlugin.prototype.apply = function(compiler) {
       // replace css
       // now css ref to img/font with cdn path
       // meanwhile upload chunk files to save time
-      log('upload img and font...')
+      log('uploading img and font...')
       logLocal && console.log([...imgArr, ...fontArr])
       const imgAndFontPairs = await cdn.upload([...imgArr, ...fontArr])
       // update img/font reference in css/js files
@@ -557,10 +608,15 @@ UploadPlugin.prototype.apply = function(compiler) {
         )
       )
       // upload chunk files
-      log('upload chunks...')
+      log('uploading chunks...')
       const chunkPairs = await cdn.upload(chunkArrWAbs)
       // update chunkMap, so far no cdn url for common chunks
       let newChunkMap = generateChunkMapToCDN(chunkPairs, chunkMap, {})
+      log('uploading css...')
+      const cssLocal2CdnObj = await cdn.upload(cssArr)
+      if (asyncCSS) {
+        updateCssLoad(commonChunksWAbs, getLocal2CdnObj(cssLocal2CdnObj))
+      }
       // entry chunk is just entry file : )
       // the reason uploading common as well as entry is to support webpack@4 and < 4
       // have common/entry chunks, update chunkMap within it
@@ -586,8 +642,8 @@ UploadPlugin.prototype.apply = function(compiler) {
         : jsArr.filter(js => !commonChunksWAbs.includes(js))
       updateScriptSrc(manifestList, newChunkMap)
 
-      // concat js + css + img
-      const adjustedFiles = [...manifestList, ...cssArr]
+      // only js here
+      const adjustedFiles = [...manifestList]
       // if provide with src
       // then use it
       // or use emitted html files
@@ -599,13 +655,14 @@ UploadPlugin.prototype.apply = function(compiler) {
             return last
           }, [])
 
-      log('upload js and css...')
+      log('uploading js...')
       logLocal && console.log(adjustedFiles)
-      const jsCssLocal2CdnObj = await cdn.upload(adjustedFiles)
+      const jsLocal2CdnObj = await cdn.upload(adjustedFiles)
       // reuse image/common chunks result here
       // ! important to reuse common chunks since they could just by entry files
       const allLocal2CdnObj = Object.assign(
-        jsCssLocal2CdnObj,
+        jsLocal2CdnObj,
+        cssLocal2CdnObj,
         imgAndFontPairs,
         commonChunksPair
       )

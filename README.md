@@ -351,6 +351,12 @@ Force to copy generated templates from `src` to `dist` even if no cdn Url has be
 
 > When set to `false`, the generated templates will still be copied from `src` to `dist` as long as if no corresponding file exists in `dist`.
 
+### [`asyncCSS`=false]: boolean
+
+Try to handle async CSS files emitted by `mini-css-extract-plugin`.
+
+> _CAUTIOUS!_ This is experimental! May have bugs!
+
 Viola! That's all : )
 
 ## License
