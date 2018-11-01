@@ -190,6 +190,12 @@ module.exports = {
 
 Valid fields for `option` are showed below:
 
+### [`smartAssMode`=false]: boolean
+
+If switch on, we assume that all files needed is in the `output.path` of your webpack config file. No more `src`, `dist`, `staticDir` are needed (and will be ignored if being set).
+
+> This is an _opinionated_ setup. Under the hood, `src`, `dist` and `staticDir` are equivalently set to the same as `output.path`
+
 ### [`src`]: string
 
 Where your valid raw template files would appear (with reference to local js/css files). Default to be where html files would be emitted to based on your webpack configuration.
