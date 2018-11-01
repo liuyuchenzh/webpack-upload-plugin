@@ -1,357 +1,32 @@
-const fs = require('fs')
-const fse = require('fs-extra')
 const path = require('path')
 const {
   parallel,
   compatCache,
   beforeUpload: beforeProcess
 } = require('y-upload-utils')
-const pjName = require('./package.json').name
-const DEFAULT_SEP = '/'
-const FILTER_OUT_DIR = ['.idea', '.vscode', '.gitignore', 'node_modules']
-const PUBLIC_PATH_MATCH = /__webpack_require__\.p\s?=\s?([^;]+);/g
-const getScriptRegExp = () =>
-  /__webpack_require__\.p\s?\+[^\[]+\[(\S+)][\s\S]+?\.js['"];?/g
-const getCssChunksRegExp = () => /var\scssChunks\s*=\s*([^;\n]+);/
-const getCssHrefRegExp = () => /var\shref\s*=[^\n]+?chunkId[^\n;]+;/
-
-// read file
-const read = location => fs.readFileSync(location, 'utf-8')
-// write file
-const write = location => content => fs.writeFileSync(location, content)
-
-/**
- * log information
- * @param {*} msg
- */
-function log(msg) {
-  console.log(`[${pjName}]: ${msg}`)
-}
-
-/**
- * log error
- * @param msg
- */
-function logErr(msg) {
-  console.error(`[${pjName}]: ${msg}`)
-}
-
-// remove publicPath from reference
-const handlePublicPath = publicPath => content => {
-  // match strictly
-  const regStr = publicPath
-    .split(DEFAULT_SEP)
-    .filter(item => !!item)
-    .map(part => {
-      if (/\./.test(part)) {
-        return part.replace(/\.+/g, match =>
-          match
-            .split('')
-            .map(dot => '\\' + dot)
-            .join('')
-        )
-      }
-      return part
-    })
-    .join('\\/')
-  const refinedRegStr = `([(=]['"]?)${regStr}`
-  const reg = new RegExp(refinedRegStr, 'g')
-  return content.replace(reg, (_, prefix) => (prefix ? prefix : ''))
-}
-
-// 1. gather html file
-// 2. gather production file
-// 3. upload all production file
-// 4. find the usage of production file in html file
-// 5. if found, replace
-
-function resolve(...input) {
-  return path.resolve(...input)
-}
-
-function normalize(input, sep = DEFAULT_SEP) {
-  const _input = path.normalize(input)
-  return _input.split(path.sep).join(sep)
-}
-
-function isFilterOutDir(input) {
-  return FILTER_OUT_DIR.includes(input)
-}
-
-/**
- * given localPath, return string to form matching RegExp
- * @param {string} localPath
- */
-function generateLocalPathStr(localPath) {
-  const pathArr = localPath.split(DEFAULT_SEP)
-  const len = pathArr.length
-  return pathArr
-    .map((part, index) => {
-      if (index === len - 1) {
-        return `${part}`
-      } else {
-        return `\\.?(${part})?`
-      }
-    })
-    .join(`\\${DEFAULT_SEP}?`)
-}
-
-/**
- * produce RegExp to match local path
- * @param {string} localPath
- * @return {RegExp}
- */
-function generateLocalPathReg(localPath) {
-  const content = generateLocalPathStr(localPath)
-  const prefix = `([(=+]\\s*['"]?)`
-  // using prefix to strictly match resource reference
-  // like src="", url(""), a = ""
-  return new RegExp(`${prefix}${content}`, 'g')
-}
-
-/**
- * find file usage
- * 1. make sure the range: srcPath
- * 2. provide inline path to search and to replace with: localCdnPair
- * @param {string} srcPath
- * @param {string=} distPath
- * @param {function=} replaceFn
- * @param {boolean=} [copyWhenUntouched=true] copy file even if the content remains the same
- * @return {function}
- */
-function simpleReplace(
-  srcPath,
-  distPath = srcPath,
-  replaceFn = input => input,
-  copyWhenUntouched = true
-) {
-  const srcFile = read(srcPath)
-  return function savePair(localCdnPair) {
-    const ret = localCdnPair.reduce((last, file) => {
-      const localPath = normalize(file[0])
-      const cdnPath = file[1]
-      const localPathReg = generateLocalPathReg(localPath)
-
-      last = replaceFn(last, srcPath).replace(
-        localPathReg,
-        (_, prefix) => `${prefix}${cdnPath}`
-      )
-      return last
-    }, srcFile)
-    // no such path > force copy > content change
-    const toCopy =
-      !fs.existsSync(distPath) || copyWhenUntouched || ret !== srcFile
-    if (toCopy) {
-      fse.ensureFileSync(distPath)
-      write(distPath)(ret)
-    }
-  }
-}
-
-/**
- * gather specific file type within directory provided
- * 1. provide range to search: src
- * 2. provide the type of file to search: type
- * @param {string} src: directory to search
- * @return {function}
- */
-function gatherFileIn(src) {
-  return function gatherFileType(type) {
-    return fs.readdirSync(src).reduce((last, file) => {
-      const filePath = resolve(src, file)
-      if (isFile(filePath)) {
-        path.extname(file) === `.${type}` && last.push(normalize(filePath))
-      } else if (isFilterOutDir(file)) {
-        // do nothing
-      } else if (isDir(filePath)) {
-        last = last.concat(gatherFileIn(filePath)(type))
-      }
-      return last
-    }, [])
-  }
-}
-
-function isFile(input) {
-  return fs.statSync(input).isFile()
-}
-
-function isDir(input) {
-  return fs.statSync(input).isDirectory()
-}
-
-function isType(type) {
-  return function enterFile(file) {
-    return isFile(file) && path.extname(file) === '.' + type
-  }
-}
-
-const handleCdnRes = cb => entries => {
-  if (typeof cb !== 'function') return logErr(`urlCb is not function`)
-  const isArr = Array.isArray(entries)
-  // if not array, handle as {[localLocation]: [cdnUrl]}
-  const target = isArr ? entries : Object.entries(entries)
-  return target.map(pair => {
-    // pair[1] should be cdn url
-    // pass local path as well
-    pair[1] = cb(pair[1], pair[0])
-    if (typeof pair[1] !== 'string')
-      logErr(`the return result of urlCb is not string`)
-    return pair
-  })
-}
-
-function mapSrcToDist(srcFilePath, srcRoot, distRoot) {
-  return srcFilePath.replace(srcRoot, distRoot)
-}
-
-const imgTypeArr = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'ico']
-const fontTypeArr = ['woff', 'woff2', 'ttf', 'oft', 'svg', 'eot']
-const isCss = isType('css')
-const isJs = isType('js')
-const isOneOfType = (types = ['']) => file =>
-  types.some(type => isType(type)(file))
-
-function isFont(path) {
-  return fontTypeArr.some(type => isType(type)(path))
-}
-
-function isImg(path) {
-  return imgTypeArr.some(type => isType(type)(path))
-}
-
-/**
- * generate {id: name} object for all chunk chunk
- * @param {*[]} chunks
- * @param {string} chunkFileName
- */
-function gatherChunks(chunks, chunkFileName) {
-  return chunks.reduce((last, chunk) => {
-    if (/\[hash(:\d+)?]/.test(chunkFileName)) {
-      throw new Error(
-        `[${pjName}]: Do NOT use [hash] as output filename! Use [chunkhash] or [contenthash] instead`
-      )
-    }
-    const { id, name, renderedHash, contentHash } = chunk
-    // handle slice properly
-    const handleLen = source => (match, len) => {
-      if (len) {
-        return source.slice(0, +len.slice(1))
-      }
-      return match
-    }
-    const handleChunkHash = handleLen(renderedHash)
-    // handle webpack@4 as well as <4
-    const handleContentHash = handleLen(
-      contentHash ? contentHash.javascript : renderedHash
-    )
-    last[id] = chunkFileName
-      .replace(/\[name]/g, name || `${id}`)
-      .replace(/\[id]/g, `${id}`)
-      .replace(/\[chunkhash(:\d+)?]/g, handleChunkHash)
-      .replace(/\[contenthash(:\d+)?]/g, handleContentHash)
-    return last
-  }, {})
-}
-
-/**
- * whether chunk is "entry" (common chunks is also considered as "entry")
- * @param {string} js
- */
-
-function isEntryChunk(js) {
-  const content = read(js)
-  return getScriptRegExp().test(content)
-}
-
-/**
- * convert object to array
- * @param {object} obj
- */
-function convertToArray(obj) {
-  return Object.values(obj)
-}
-
-/**
- * update script.src property for request for dynamic import
- * experimental
- * @param {string[]} files
- * @param {{id: string}} chunkCdnMap
- */
-function updateScriptSrc(files, chunkCdnMap) {
-  // if no new map was formed, then keep the way it is
-  const len = Object.keys(chunkCdnMap).length
-  if (!len) return
-  files.forEach(file => {
-    const content = read(file)
-    let newContent = content
-    // update chunkMap
-    if (getScriptRegExp().test(content)) {
-      const srcAssignStr = `${JSON.stringify(chunkCdnMap)}[$1];`
-      newContent = newContent.replace(getScriptRegExp(), srcAssignStr)
-    }
-    // update publicPath
-    if (PUBLIC_PATH_MATCH.test(content)) {
-      newContent = newContent.replace(
-        PUBLIC_PATH_MATCH,
-        `__webpack_require__.p = "";`
-      )
-    }
-    write(file)(newContent)
-  })
-}
-
-function updateCssLoad(files, cssMap) {
-  const keys = cssMap.map(([local]) => local)
-  files.forEach(file => {
-    const content = read(file)
-    let newContent = content
-    const match = content.match(getCssChunksRegExp())
-    if (match) {
-      const [_, map] = match
-      newContent = newContent.replace(getCssHrefRegExp(), hrefMatch => {
-        // get the new cssMap with {chunkId, href} structure
-        // where chunkId is the id for the css file, and href is the cdn url
-        const fnBody = `
-            const map = ${map};
-            return Object.keys(map).map(chunkId => {
-              ${hrefMatch};
-              href = href.replace(/^\\./, "");
-              return {chunkId, href};
-            })
-          `
-        const hrefArr = new Function(fnBody)()
-        // convert to {[chunkId]: href} structure
-        const cssChunkIdCdnMap = hrefArr.reduce((last, { chunkId, href }) => {
-          const localIndex = keys.findIndex(key => key.indexOf(href) > -1)
-          if (localIndex < 0) {
-            return last
-          }
-          last[chunkId] = cssMap[localIndex][1]
-          return last
-        }, {})
-        // cannot form new Map, return the original one
-        if (!Object.keys(cssChunkIdCdnMap).length) {
-          return hrefMatch
-        }
-        const newCssMap = JSON.stringify(cssChunkIdCdnMap)
-        return `var href = ${newCssMap}[chunkId];`
-      })
-      // update js entry file with new cssMap
-      write(file)(newContent)
-    }
-  })
-}
-
-/**
- * get id of chunk given a absolute path of chunk file and id:chunk map
- * @param {string} chunkAbsPath
- * @param {{id: string}} chunkMap
- */
-function getIdForChunk(chunkAbsPath, chunkMap) {
-  return Object.keys(chunkMap).find(
-    key => chunkAbsPath.indexOf(chunkMap[key]) > -1
-  )
-}
+const {
+  resolve,
+  simpleReplace,
+  handlePublicPath,
+  getExistsAtFromAsset,
+  handleCdnRes,
+  isCss,
+  isEntryChunk,
+  isFont,
+  isImg,
+  isJs,
+  isOneOfType,
+  imgTypeArr,
+  fontTypeArr,
+  gatherChunks,
+  gatherFileIn,
+  getIdForChunk,
+  mapSrcToDist,
+  getObjValueArray,
+  updateCssLoad,
+  updateScriptSrc
+} = require('./util/util')
+const { log, logErr } = require('./util/log')
 
 /**
  * @typedef {function(string): string} urlCb
@@ -380,6 +55,7 @@ function getIdForChunk(chunkAbsPath, chunkMap) {
  * @param {number=} [option.sliceLimit=10]
  * @param {boolean=} option.forceCopyTemplate
  * @param {boolean=} [option.asyncCSS=false]
+ * @param {boolean=} [option.smartAssMode=false]
  * @constructor
  */
 function UploadPlugin(cdn, option = {}) {
@@ -407,11 +83,14 @@ UploadPlugin.prototype.apply = function(compiler) {
     cacheLocation,
     sliceLimit,
     forceCopyTemplate,
-    asyncCSS = false
+    asyncCSS = false,
+    smartAssMode = false
   } = this.option
   // get absolute path of src and dist directory
-  const srcRoot = resolve(src)
-  const distRoot = resolve(dist)
+  let srcRoot = resolve(src)
+  let distRoot = resolve(dist)
+  let staticDirMut = staticDir
+  let srcMut = src
   const getLocal2CdnObj = handleCdnRes(urlCb)
   const isTemplate = isOneOfType(resolveList)
 
@@ -463,7 +142,7 @@ UploadPlugin.prototype.apply = function(compiler) {
       await waitFor()
       const { chunks, options } = stats.compilation
       const {
-        output: { publicPath = '' },
+        output: { publicPath = '', path: outputPath },
         mode
       } = options
       // early warning
@@ -474,6 +153,14 @@ UploadPlugin.prototype.apply = function(compiler) {
         log(
           'WARNING! publicPath is not empty, the plugin will try to handle it for you. But it is preferred to toggle it by yourself!'
         )
+      }
+      // try to be smart ass
+      // which means assume all needed files is in the output.path from webpack
+      if (smartAssMode) {
+        srcRoot = outputPath
+        distRoot = outputPath
+        staticDirMut = outputPath
+        srcMut = outputPath
       }
       // don't want to use publicPath since about to use cdn url
       const removePublicPath = handlePublicPath(publicPath)
@@ -493,14 +180,14 @@ UploadPlugin.prototype.apply = function(compiler) {
       // then only collect files from staticDir
       // instead of ones provided by webpack
       // if pass in an array, gather files recursively
-      const gatherManualAssets = Array.isArray(staticDir)
+      const gatherManualAssets = Array.isArray(staticDirMut)
         ? type => {
-            return staticDir.reduce((last, dir) => {
+            return staticDirMut.reduce((last, dir) => {
               return [...last, ...gatherFileIn(dir)(type)]
             }, [])
           }
-        : gatherFileIn(staticDir)
-      const manualAssets = staticDir
+        : gatherFileIn(staticDirMut)
+      const manualAssets = staticDirMut
         ? [...imgTypeArr, ...fontTypeArr, 'css', 'js', ...resolveList].reduce(
             (last, type) => {
               const files = gatherManualAssets(type)
@@ -518,7 +205,7 @@ UploadPlugin.prototype.apply = function(compiler) {
       // here we get chunks needs to be dealt with
       const chunkMap = gatherChunks(chunks, options.output.chunkFilename)
       // all assets including js/css/img
-      const { assets } = staticDir
+      const { assets } = staticDirMut
         ? { assets: manualAssets }
         : stats.compilation
       const assetsNames = Object.keys(assets)
@@ -551,8 +238,8 @@ UploadPlugin.prototype.apply = function(compiler) {
 
       const { img, css, js, font, html } = desireAssets
 
-      // warning if no template found but staticDir set
-      if (staticDir && !Object.keys(html).length && !src) {
+      // warning if no template found but staticDirMut set
+      if (staticDirMut && !Object.keys(html).length && !src) {
         log('WARNING!')
         log(
           "staticDir is set but haven't found any template files in those directories"
@@ -560,20 +247,12 @@ UploadPlugin.prototype.apply = function(compiler) {
         log('Try to use src filed to include your template files')
       }
 
-      // make assets object to array with local path
-      function makeArr(input) {
-        return Object.keys(input).map(name => {
-          const info = input[name]
-          return info.existsAt
-        })
-      }
-
-      const imgArr = makeArr(img)
-      const fontArr = makeArr(font)
-      const jsArr = makeArr(js)
-      const cssArr = makeArr(css)
-      const htmlArr = makeArr(html)
-      const chunkArr = convertToArray(chunkMap)
+      const imgArr = getExistsAtFromAsset(img)
+      const fontArr = getExistsAtFromAsset(font)
+      const jsArr = getExistsAtFromAsset(js)
+      const cssArr = getExistsAtFromAsset(css)
+      const htmlArr = getExistsAtFromAsset(html)
+      const chunkArr = getObjValueArray(chunkMap)
       const commonChunksArr = jsArr.filter(isEntryChunk)
 
       // find out which js files are chunk chunk, common chunk, or entry
@@ -600,6 +279,10 @@ UploadPlugin.prototype.apply = function(compiler) {
         }
       )
 
+      if (notChunkJsArr.length) {
+        // nothing
+      }
+
       // upload img/font
       // find img/font in css
       // replace css
@@ -619,10 +302,12 @@ UploadPlugin.prototype.apply = function(compiler) {
       )
       // upload chunk files
       log('uploading chunks...')
+      logLocal && console.log(chunkArrWAbs)
       const chunkPairs = await cdn.upload(chunkArrWAbs)
       // update chunkMap, so far no cdn url for common chunks
       let newChunkMap = generateChunkMapToCDN(chunkPairs, chunkMap, {})
       log('uploading css...')
+      logLocal && console.log(cssArr)
       const cssLocal2CdnObj = await cdn.upload(cssArr)
       if (asyncCSS) {
         updateCssLoad(commonChunksWAbs, getLocal2CdnObj(cssLocal2CdnObj))
@@ -657,10 +342,10 @@ UploadPlugin.prototype.apply = function(compiler) {
       // if provide with src
       // then use it
       // or use emitted html files
-      const tplFiles = !src
+      const tplFiles = !srcMut
         ? htmlArr
         : resolveList.reduce((last, type) => {
-            const findFileInRoot = gatherFileIn(src)
+            const findFileInRoot = gatherFileIn(srcMut)
             last = last.concat(findFileInRoot(type))
             return last
           }, [])
