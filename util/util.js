@@ -283,8 +283,12 @@ function updateScriptSrc(files, chunkCdnMap) {
     let newContent = content
     // update chunkMap
     if (getScriptRegExp().test(content)) {
-      const srcAssignStr = `${JSON.stringify(chunkCdnMap)}[$1];`
-      newContent = newContent.replace(getScriptRegExp(), srcAssignStr)
+      newContent = newContent.replace(getScriptRegExp(), (match, id) => {
+        if (!id) {
+          return match
+        }
+        return `${JSON.stringify(chunkCdnMap)}[${id}];`
+      })
     }
     // update publicPath
     if (PUBLIC_PATH_MATCH.test(content)) {
