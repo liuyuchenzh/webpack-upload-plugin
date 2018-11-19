@@ -3,10 +3,10 @@ const fs = require('fs')
 const fse = require('fs-extra')
 const { read, write } = require('./io')
 const {
-  PUBLIC_PATH_MATCH,
   getCssChunksRegExp,
   getCssHrefRegExp,
-  getScriptRegExp
+  getScriptRegExp,
+  getPublicPathExp
 } = require('./regexp')
 const pjName = require('../package.json').name
 const { isFile, isDir, isType } = require('./status')
@@ -291,9 +291,9 @@ function updateScriptSrc(files, chunkCdnMap) {
       })
     }
     // update publicPath
-    if (PUBLIC_PATH_MATCH.test(content)) {
+    if (getPublicPathExp().test(content)) {
       newContent = newContent.replace(
-        PUBLIC_PATH_MATCH,
+        getPublicPathExp(),
         `__webpack_require__.p = "";`
       )
     }
