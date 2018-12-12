@@ -2,9 +2,13 @@
   "name": "webpack-upload-plugin",
   "version": "0.16.2",
   "description": "webpack-upload-plugin, webpack plugin",
-  "main": "index.js",
+  "main": "dist/index.js",
+  "umd:main": "dist/index.umd.js",
+  "module": "dist/index.mjs",
+  "source": "index.mjs",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "build": "microbundle --target node",
+    "dev": "microbundle watch --target node"
   },
   "repository": {
     "type": "git",
@@ -31,17 +35,18 @@
     ]
   },
   "dependencies": {
-    "fs-extra": "^7.0.0",
+    "fs-extra": "^7.0.1",
     "md5": "^2.2.1",
     "y-upload-utils": "^1.5.0"
   },
   "devDependencies": {
     "babel-eslint": "^10.0.1",
-    "eslint": "^5.8.0",
-    "eslint-config-prettier": "^3.1.0",
+    "eslint": "^5.10.0",
+    "eslint-config-prettier": "^3.3.0",
     "eslint-plugin-prettier": "^3.0.0",
-    "husky": "^1.1.2",
-    "lint-staged": "^8.0.4",
-    "prettier": "^1.14.3"
+    "husky": "^1.2.0",
+    "lint-staged": "^8.1.0",
+    "microbundle": "^0.8.3",
+    "prettier": "^1.15.3"
   }
 }

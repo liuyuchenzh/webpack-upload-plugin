@@ -1,10 +1,10 @@
-const pjName = require('../package.json').name
+import { name as pjName } from './static.mjs'
 
 /**
  * log information
  * @param {*} msg
  */
-function log(msg) {
+export function log(msg) {
   console.log(`[${pjName}]: ${msg}`)
 }
 
@@ -12,11 +12,6 @@ function log(msg) {
  * log error
  * @param msg
  */
-function logErr(msg) {
+export function logErr(msg) {
   console.error(`[${pjName}]: ${msg}`)
-}
-
-module.exports = {
-  log,
-  logErr
 }

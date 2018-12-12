@@ -307,7 +307,7 @@ const waitFor = new Promise(resolve => {
 })
 ```
 
-### [`dirtyCheck`]: boolean
+### [`dirtyCheck=false`]: boolean
 
 For cases where chunk file can also be entry file, set `dirtyCheck` to `true` to make sure entry file would be updated properly.
 
@@ -325,7 +325,7 @@ const onFinish = () => {
 
 Called when encounter any error.
 
-### [`logLocalFiles`]: boolean
+### [`logLocalFiles=false`]: boolean
 
 Whether to print all uploading file names during the process
 
@@ -342,7 +342,7 @@ const passToCdn = {
 cdn.upload(files, passToCdn)
 ```
 
-### [`enableCache`]: boolean
+### [`enableCache=true`]: boolean
 
 Enable cache to speed up. Default to `false`.
 
@@ -365,11 +365,9 @@ Force to copy generated templates from `src` to `dist` even if no cdn Url has be
 
 > When set to `false`, the generated templates will still be copied from `src` to `dist` as long as if no corresponding file exists in `dist`.
 
-### [`asyncCSS`=false]: boolean
+### [`asyncCSS`=true]: boolean
 
 Try to handle async CSS files emitted by `mini-css-extract-plugin`.
-
-> _CAUTIOUS!_ This is experimental! May have bugs!
 
 Viola! That's all : )
 

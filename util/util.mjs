@@ -1,16 +1,16 @@
-const path = require('path')
-const fs = require('fs')
-const fse = require('fs-extra')
-const { read, write } = require('./io')
-const {
+import path from 'path'
+import fs from 'fs'
+import fse from 'fs-extra'
+import { read, write } from './io.mjs'
+import {
   getCssChunksRegExp,
   getCssHrefRegExp,
   getScriptRegExp,
   getPublicPathExp
-} = require('./regexp')
-const pjName = require('../package.json').name
-const { isFile, isDir, isType } = require('./status')
-const { logErr } = require('./log')
+} from './regexp.mjs'
+import { isFile, isDir, isType } from './status.mjs'
+import { logErr } from './log.mjs'
+import { name as pjName } from './static.mjs'
 
 const DEFAULT_SEP = '/'
 const FILTER_OUT_DIR = ['.idea', '.vscode', '.gitignore', 'node_modules']
@@ -372,7 +372,7 @@ function getExistsAtFromAsset(asset) {
   })
 }
 
-module.exports = {
+export {
   resolve,
   simpleReplace,
   handlePublicPath,

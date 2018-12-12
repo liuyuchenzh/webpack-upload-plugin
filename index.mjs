@@ -1,10 +1,10 @@
-const path = require('path')
-const {
+import path from 'path'
+import {
   parallel,
   compatCache,
-  beforeUpload: beforeProcess
-} = require('y-upload-utils')
-const {
+  beforeUpload as beforeProcess
+} from 'y-upload-utils'
+import {
   resolve,
   simpleReplace,
   handlePublicPath,
@@ -25,8 +25,8 @@ const {
   getObjValueArray,
   updateCssLoad,
   updateScriptSrc
-} = require('./util/util')
-const { log, logErr } = require('./util/log')
+} from './util/util.mjs'
+import { log, logErr } from './util/log.mjs'
 
 /**
  * @typedef {function(string): string} urlCb
@@ -50,11 +50,11 @@ const { log, logErr } = require('./util/log')
  * @param {boolean=} [option.dirtyCheck=false]
  * @param {boolean=} option.logLocalFiles
  * @param {object=} option.passToCdn
- * @param {boolean=} [option.enableCache=false]
+ * @param {boolean=} [option.enableCache=true]
  * @param {string=} option.cacheLocation
  * @param {number=} [option.sliceLimit=10]
  * @param {boolean=} option.forceCopyTemplate
- * @param {boolean=} [option.asyncCSS=false]
+ * @param {boolean=} [option.asyncCSS=true]
  * @param {boolean=} [option.smartAssMode=false]
  * @constructor
  */
@@ -79,11 +79,11 @@ UploadPlugin.prototype.apply = function(compiler) {
     waitFor = () => Promise.resolve(true),
     dirtyCheck = false,
     passToCdn,
-    enableCache = false,
+    enableCache = true,
     cacheLocation,
     sliceLimit,
     forceCopyTemplate,
-    asyncCSS = false,
+    asyncCSS = true,
     smartAssMode = false
   } = this.option
   // get absolute path of src and dist directory
