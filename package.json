@@ -1,6 +1,6 @@
 {
   "name": "webpack-upload-plugin",
-  "version": "0.17.0",
+  "version": "0.17.1",
   "description": "webpack-upload-plugin, webpack plugin",
   "main": "dist/index.js",
   "umd:main": "dist/index.umd.js",
