@@ -233,7 +233,7 @@ function gatherChunks(chunks, chunkFileName) {
       if (len) {
         return source.slice(0, +len.slice(1))
       }
-      return match
+      return source
     }
     const handleChunkHash = handleLen(renderedHash)
     // handle webpack@4 as well as <4

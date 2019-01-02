@@ -8,6 +8,69 @@
 	path = path && path.hasOwnProperty('default') ? path['default'] : path;
 
 	// A type of promise-like that resolves synchronously and supports only one observer
+	const _Pact = (function() {
+		function _Pact() {}
+		_Pact.prototype.then = function(onFulfilled, onRejected) {
+			const result = new _Pact();
+			const state = this.s;
+			if (state) {
+				const callback = state & 1 ? onFulfilled : onRejected;
+				if (callback) {
+					try {
+						_settle(result, 1, callback(this.v));
+					} catch (e) {
+						_settle(result, 2, e);
+					}
+					return result;
+				} else {
+					return this;
+				}
+			}
+			this.o = function(_this) {
+				try {
+					const value = _this.v;
+					if (_this.s & 1) {
+						_settle(result, 1, onFulfilled ? onFulfilled(value) : value);
+					} else if (onRejected) {
+						_settle(result, 1, onRejected(value));
+					} else {
+						_settle(result, 2, value);
+					}
+				} catch (e) {
+					_settle(result, 2, e);
+				}
+			};
+			return result;
+		};
+		return _Pact;
+	})();
+
+	// Settles a pact synchronously
+	function _settle(pact, state, value) {
+		if (!pact.s) {
+			if (value instanceof _Pact) {
+				if (value.s) {
+					if (state & 1) {
+						state = value.s;
+					}
+					value = value.v;
+				} else {
+					value.o = _settle.bind(null, pact, state);
+					return;
+				}
+			}
+			if (value && value.then) {
+				value.then(_settle.bind(null, pact, state), _settle.bind(null, pact, 2));
+				return;
+			}
+			pact.s = state;
+			pact.v = value;
+			const observer = pact.o;
+			if (observer) {
+				observer(pact);
+			}
+		}
+	}
 
 	// Asynchronously call a function and send errors to recovery continuation
 	function _catch(body, recover) {
@@ -21,6 +84,121 @@
 		}
 		return result;
 	}
+
+	// Sentinel value for early returns in generators 
+	const _earlyReturn = {};
+
+	// Asynchronous generator class; accepts the entrypoint of the generator, to which it passes itself when the generator should start
+	const _AsyncGenerator = (function() {
+		function _AsyncGenerator(entry) {
+			this._entry = entry;
+			this._pact = null;
+			this._resolve = null;
+			this._return = null;
+			this._promise = null;
+		}
+
+		function _wrapReturnedValue(value) {
+			return { value: value, done: true };
+		}
+		function _wrapYieldedValue(value) {
+			return { value: value, done: false };
+		}
+
+		_AsyncGenerator.prototype[Symbol.asyncIterator || (Symbol.asyncIterator = Symbol("Symbol.asyncIterator"))] = function() {
+			return this;
+		};
+		_AsyncGenerator.prototype._yield = function(value) {
+			// Yield the value to the pending next call
+			this._resolve(value && value.then ? value.then(_wrapYieldedValue) : _wrapYieldedValue(value));
+			// Return a pact for an upcoming next/return/throw call
+			return this._pact = new _Pact();
+		};
+		_AsyncGenerator.prototype.next = function(value) {
+			// Advance the generator, starting it if it has yet to be started
+			const _this = this;
+			return _this._promise = new Promise(function (resolve) {
+				const _pact = _this._pact;
+				if (_pact === null) {
+					const _entry = _this._entry;
+					if (_entry === null) {
+						// Generator is started, but not awaiting a yield expression
+						// Abandon the next call!
+						return resolve(_this._promise);
+					}
+					// Start the generator
+					_this._entry = null;
+					_this._resolve = resolve;
+					function returnValue(value) {
+						_this._resolve(value && value.then ? value.then(_wrapReturnedValue) : _wrapReturnedValue(value));
+						_this._pact = null;
+						_this._resolve = null;
+					}
+					_entry(_this).then(returnValue, function(error) {
+						if (error === _earlyReturn) {
+							returnValue(_this._return);
+						} else {
+							const pact = new _Pact();
+							_this._resolve(pact);
+							_this._pact = null;
+							_this._resolve = null;
+							_resolve(pact, 2, error);
+						}
+					});
+				} else {
+					// Generator is started and a yield expression is pending, settle it
+					_this._pact = null;
+					_this._resolve = resolve;
+					_settle(_pact, 1, value);
+				}
+			});
+		};
+		_AsyncGenerator.prototype.return = function(value) {
+			// Early return from the generator if started, otherwise abandons the generator
+			const _this = this;
+			return _this._promise = new Promise(function (resolve) {
+				const _pact = _this._pact;
+				if (_pact === null) {
+					if (_this._entry === null) {
+						// Generator is started, but not awaiting a yield expression
+						// Abandon the return call!
+						return resolve(_this._promise);
+					}
+					// Generator is not started, abandon it and return the specified value
+					_this._entry = null;
+					return resolve(value && value.then ? value.then(_wrapReturnedValue) : _wrapReturnedValue(value));
+				}
+				// Settle the yield expression with a rejected "early return" value
+				_this._return = value;
+				_this._resolve = resolve;
+				_this._pact = null;
+				_settle(_pact, 2, _earlyReturn);
+			});
+		};
+		_AsyncGenerator.prototype.throw = function(error) {
+			// Inject an exception into the pending yield expression
+			const _this = this;
+			return _this._promise = new Promise(function (resolve, reject) {
+				const _pact = _this._pact;
+				if (_pact === null) {
+					if (_this._entry === null) {
+						// Generator is started, but not awaiting a yield expression
+						// Abandon the throw call!
+						return resolve(_this._promise);
+					}
+					// Generator is not started, abandon it and return a rejected Promise containing the error
+					_this._entry = null;
+					return reject(error);
+				}
+				// Settle the yield expression with the value as a rejection
+				_this._resolve = resolve;
+				_this._pact = null;
+				_settle(_pact, 2, error);
+			});
+		};
+		
+		return _AsyncGenerator;
+	})();
 
 	var read = function (location) { return fs.readFileSync(location, 'utf-8'); }; // write file
 
@@ -290,7 +468,7 @@
 	        return source.slice(0, +len.slice(1));
 	      }
 
-	      return match;
+	      return source;
 	    }; };
 
 	    var handleChunkHash = handleLen(renderedHash); // handle webpack@4 as well as <4
@@ -454,11 +632,11 @@
 	 * @param {boolean=} [option.dirtyCheck=false]
 	 * @param {boolean=} option.logLocalFiles
 	 * @param {object=} option.passToCdn
-	 * @param {boolean=} [option.enableCache=false]
+	 * @param {boolean=} [option.enableCache=true]
 	 * @param {string=} option.cacheLocation
 	 * @param {number=} [option.sliceLimit=10]
 	 * @param {boolean=} option.forceCopyTemplate
-	 * @param {boolean=} [option.asyncCSS=false]
+	 * @param {boolean=} [option.asyncCSS=true]
 	 * @param {boolean=} [option.smartAssMode=false]
 	 * @constructor
 	 */
@@ -486,11 +664,11 @@
 	  var waitFor = ref.waitFor; if ( waitFor === void 0 ) waitFor = function () { return Promise.resolve(true); };
 	  var dirtyCheck = ref.dirtyCheck; if ( dirtyCheck === void 0 ) dirtyCheck = false;
 	  var passToCdn = ref.passToCdn;
-	  var enableCache = ref.enableCache; if ( enableCache === void 0 ) enableCache = false;
+	  var enableCache = ref.enableCache; if ( enableCache === void 0 ) enableCache = true;
 	  var cacheLocation = ref.cacheLocation;
 	  var sliceLimit = ref.sliceLimit;
 	  var forceCopyTemplate = ref.forceCopyTemplate;
-	  var asyncCSS = ref.asyncCSS; if ( asyncCSS === void 0 ) asyncCSS = false;
+	  var asyncCSS = ref.asyncCSS; if ( asyncCSS === void 0 ) asyncCSS = true;
 	  var smartAssMode = ref.smartAssMode; if ( smartAssMode === void 0 ) smartAssMode = false; // get absolute path of src and dist directory
 
 	  var srcRoot = resolve(src);
