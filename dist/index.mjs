@@ -729,10 +729,11 @@ UploadPlugin.prototype.apply = function (compiler) {
           var options_output = options.output;
           var publicPath = options_output.publicPath; if ( publicPath === void 0 ) publicPath = '';
           var outputPath = options_output.path;
-          var mode = options.mode; // early warning
+          var options_optimization = options.optimization; if ( options_optimization === void 0 ) options_optimization = {};
+          var minimize = options_optimization.minimize; // early warning
 
-          if (mode && mode !== 'none') {
-            log("WARNING! Set the mode to 'none' to make it works!");
+          if (minimize === true) {
+            log('WARNING! Set the optimization.minimize to false to make it works!');
           }
 
           if (publicPath) {

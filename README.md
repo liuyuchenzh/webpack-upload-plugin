@@ -1,3 +1,5 @@
+# webpack-upload-plugin
+
 ## Intro
 
 This is a plugin for [webpack](https://github.com/webpack/webpack).
@@ -18,7 +20,7 @@ npm i -D webpack-upload-plugin
 
 - This plugin does not provide a service as uploading to cdn. In fact, it actually depends on such service.
 - This plugin is for webpack >= 2.
-- For webpack@4, set `mode` to `'none'`!
+- For webpack@4, set `optimization.minimize` to `false`!
 - This plugin _doesn't_ work well with `UglifyJs` plugin! Use `beforeUpload` if you want to compress anyway.
 - Pay extra attention to your `publicPath` field of `webpack.config.js`, `''` is likely the best choice.
 
@@ -58,7 +60,7 @@ const cdn = {
 
 For a simple project with such structure:
 
-```
+```txt
 +-- src
 |   +-- assets
 |   |   +-- avatar.png
@@ -103,7 +105,9 @@ module.exports = {
       }
     ]
   },
-  mode: 'none', // important! important! important!
+  optimization: {
+    minimize: false // important! important! important!
+  },
   plugins: [
     new MiniCssExtractPlugin({
       filename: '[name].css',
@@ -120,8 +124,6 @@ module.exports = {
 ```
 
 > For webpack v3 users, use `extract-text-webpack-plugin` instead of `mini-css-extract-plugin`
->
-> For webpack v4 users, you can add missing plugins back manually. See details [here](https://webpack.js.org/concepts/mode/#usage)
 
 ### Complex one with Server Template
 
@@ -129,7 +131,7 @@ Run webpack in `build`, then copy all emitted files from `build/dist` to `projec
 
 Public can only access files from `project/public`
 
-```
+```txt
 +-- project
 | +-- src
 | +-- public

@@ -143,11 +143,11 @@ UploadPlugin.prototype.apply = function(compiler) {
       const { chunks, options } = stats.compilation
       const {
         output: { publicPath = '', path: outputPath },
-        mode
+        optimization: { minimize } = {}
       } = options
       // early warning
-      if (mode && mode !== 'none') {
-        log("WARNING! Set the mode to 'none' to make it works!")
+      if (minimize === true) {
+        log('WARNING! Set the optimization.minimize to false to make it works!')
       }
       if (publicPath) {
         log(
