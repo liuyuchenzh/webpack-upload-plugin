@@ -4,7 +4,7 @@
 
 This is a plugin for [webpack](https://github.com/webpack/webpack).
 
-The main aim is to provide a tool to upload js/css files used in html to cdn, and then replace the reference with the corresponding cdn url.
+The main aim is to provide a tool to upload js/css/img/font used in html (or template in other language) to cdn, and then replace the reference with the corresponding cdn url.
 
 ## Environment requirement
 
@@ -39,15 +39,27 @@ interface cdn {
 }
 ```
 
-If typescript syntax is unfamiliar, here is another description in vanilla javascript.
+Here is a sudo implementation of `cdn` in vanilla javascript.
 
 ```js
 /**
- * @param {string[]} localPath: list of paths of local files
+ * @param {string[]} localPaths: list of paths of local files
  * @return Promise<cdnRes>: resolved Promise with structure like {localPath: cdnUrl}
  */
-function upload(localPath) {
-  // code
+function upload(localPaths) {
+  return Promise.all(
+    localPaths.map(localPath => {
+      return Promise.resolve({
+        [localPath]: 'cdn_url_for_this_file'
+      })
+    })
+  ).then(
+    pairs =>
+      pairs.reduce((last, pair) => {
+        return Object.assign(last, pair)
+      }, {}),
+    () => ({})
+  )
 }
 const cdn = {
   upload
