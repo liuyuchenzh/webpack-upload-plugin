@@ -535,18 +535,19 @@
 	}
 	/**
 	 * Handle async CSS files extracted by mini-css-extract-plugin
-	 * @param {string[]} files
+	 * @param {string[]} chunkFiles
 	 * @param {[string, string][]} cssMap
+	 * @param {string} publicPath
 	 */
 
 
-	function updateCssLoad(files, cssMap) {
+	function updateCssLoad(chunkFiles, cssMap, publicPath) {
 	  var keys = cssMap.map(function (ref) {
 	    var local = ref[0];
 
 	    return local;
 	  });
-	  files.forEach(function (file) {
+	  chunkFiles.forEach(function (file) {
 	    var content = read(file);
 	    var newContent = content;
 	    var match = content.match(getCssChunksRegExp());
@@ -556,16 +557,22 @@
 	      newContent = newContent.replace(getCssHrefRegExp(), function (hrefMatch) {
 	        // get the new cssMap with {chunkId, href} structure
 	        // where chunkId is the id for the css file, and href is the cdn url
-	        var fnBody = "\n            const map = " + map + ";\n            return Object.keys(map).map(chunkId => {\n              " + hrefMatch + ";\n              href = href.replace(/^\\./, \"\");\n              return {chunkId, href};\n            })\n          ";
+	        var fnBody = "\n            const map = " + map + ";\n            return Object.keys(map).map(chunkId => {\n              " + hrefMatch + ";\n              const newHref = href.replace(/^\\./, \"\");\n              return {chunkId, href: newHref, rawHref: href};\n            })\n          ";
 	        var hrefArr = new Function(fnBody)(); // convert to {[chunkId]: href} structure
 
 	        var cssChunkIdCdnMap = hrefArr.reduce(function (last, ref) {
 	          var chunkId = ref.chunkId;
 	          var href = ref.href;
+	          var rawHref = ref.rawHref;
 
 	          var localIndex = keys.findIndex(function (key) { return key.indexOf(href) > -1; });
 
 	          if (localIndex < 0) {
+	            // use the original href when not found from cdn result
+	            // since __webpack_require__.p will be set to ""
+	            // publicPath is added here
+	            // reason: var fullhref = __webpack_require__.p + href;
+	            last[chunkId] = publicPath + rawHref;
 	            return last;
 	          }
 
@@ -916,8 +923,9 @@
 	                  });
 	                }
 
+	                // handle async css files
 	                if (asyncCSS) {
-	                  updateCssLoad(commonChunksWAbs, getLocal2CdnObj(cssLocal2CdnObj));
+	                  updateCssLoad(commonChunksWAbs, getLocal2CdnObj(cssLocal2CdnObj), publicPath);
 	                } // entry chunk is just entry file : )
 	                // the reason uploading common as well as entry is to support webpack@4 and < 4
 	                // have common/entry chunks, update chunkMap within it

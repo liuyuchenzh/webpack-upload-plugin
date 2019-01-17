@@ -309,8 +309,13 @@ UploadPlugin.prototype.apply = function(compiler) {
       log('uploading css...')
       logLocal && console.log(cssArr)
       const cssLocal2CdnObj = await cdn.upload(cssArr)
+      // handle async css files
       if (asyncCSS) {
-        updateCssLoad(commonChunksWAbs, getLocal2CdnObj(cssLocal2CdnObj))
+        updateCssLoad(
+          commonChunksWAbs,
+          getLocal2CdnObj(cssLocal2CdnObj),
+          publicPath
+        )
       }
       // entry chunk is just entry file : )
       // the reason uploading common as well as entry is to support webpack@4 and < 4

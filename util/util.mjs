@@ -303,12 +303,13 @@ function updateScriptSrc(files, chunkCdnMap) {
 
 /**
  * Handle async CSS files extracted by mini-css-extract-plugin
- * @param {string[]} files
+ * @param {string[]} chunkFiles
  * @param {[string, string][]} cssMap
+ * @param {string} publicPath
  */
-function updateCssLoad(files, cssMap) {
+function updateCssLoad(chunkFiles, cssMap, publicPath) {
   const keys = cssMap.map(([local]) => local)
-  files.forEach(file => {
+  chunkFiles.forEach(file => {
     const content = read(file)
     let newContent = content
     const match = content.match(getCssChunksRegExp())
@@ -321,20 +322,28 @@ function updateCssLoad(files, cssMap) {
             const map = ${map};
             return Object.keys(map).map(chunkId => {
               ${hrefMatch};
-              href = href.replace(/^\\./, "");
-              return {chunkId, href};
+              const newHref = href.replace(/^\\./, "");
+              return {chunkId, href: newHref, rawHref: href};
             })
           `
         const hrefArr = new Function(fnBody)()
         // convert to {[chunkId]: href} structure
-        const cssChunkIdCdnMap = hrefArr.reduce((last, { chunkId, href }) => {
-          const localIndex = keys.findIndex(key => key.indexOf(href) > -1)
-          if (localIndex < 0) {
+        const cssChunkIdCdnMap = hrefArr.reduce(
+          (last, { chunkId, href, rawHref }) => {
+            const localIndex = keys.findIndex(key => key.indexOf(href) > -1)
+            if (localIndex < 0) {
+              // use the original href when not found from cdn result
+              // since __webpack_require__.p will be set to ""
+              // publicPath is added here
+              // reason: var fullhref = __webpack_require__.p + href;
+              last[chunkId] = publicPath + rawHref
+              return last
+            }
+            last[chunkId] = cssMap[localIndex][1]
             return last
-          }
-          last[chunkId] = cssMap[localIndex][1]
-          return last
-        }, {})
+          },
+          {}
+        )
         // cannot form new Map, return the original one
         if (!Object.keys(cssChunkIdCdnMap).length) {
           return hrefMatch
