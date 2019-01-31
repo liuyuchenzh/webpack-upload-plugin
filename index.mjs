@@ -143,7 +143,7 @@ UploadPlugin.prototype.apply = function(compiler) {
       const { chunks, options } = stats.compilation
       const {
         output: { publicPath = '', path: outputPath },
-        optimization: { minimize } = {}
+        optimization: { minimize, runtimeChunk } = {}
       } = options
       // early warning
       if (minimize === true) {
@@ -254,6 +254,16 @@ UploadPlugin.prototype.apply = function(compiler) {
       const htmlArr = getExistsAtFromAsset(html)
       const chunkArr = getObjValueArray(chunkMap)
       const commonChunksArr = jsArr.filter(isEntryChunk)
+      // if provide with src
+      // then use it
+      // or use emitted html files
+      const tplFiles = !srcMut
+        ? htmlArr
+        : resolveList.reduce((last, type) => {
+            const findFileInRoot = gatherFileIn(srcMut)
+            last = last.concat(findFileInRoot(type))
+            return last
+          }, [])
 
       // find out which js files are chunk chunk, common chunk, or entry
       const { notChunkJsArr, chunkArrWAbs, commonChunksWAbs } = jsArr.reduce(
@@ -323,15 +333,22 @@ UploadPlugin.prototype.apply = function(compiler) {
       // upload them, so their cdn url can be added to newChunkMap
       // then entries can be updated with newChunkMap that has cdn url for common chunks
       let commonChunksPair = {}
-      if (commonChunksWAbs.length) {
-        updateScriptSrc(commonChunksWAbs, newChunkMap)
-        log('upload common/entry chunks...')
-        commonChunksPair = await cdn.upload(commonChunksWAbs)
-        newChunkMap = generateChunkMapToCDN(
-          commonChunksPair,
-          chunkMap,
-          newChunkMap
-        )
+      // having runtimeChunk means entry js is likely inlined
+      // therefore template files need to be checked for chunkMap existence
+      const isEntryInline = !!runtimeChunk
+      const entryTplList = isEntryInline ? tplFiles.filter(isEntryChunk) : []
+      const entryList = [...commonChunksWAbs, ...entryTplList]
+      if (entryList.length) {
+        updateScriptSrc(entryList, newChunkMap)
+        if (commonChunksWAbs.length) {
+          log('upload common/entry chunks...')
+          commonChunksPair = await cdn.upload(commonChunksWAbs)
+          newChunkMap = generateChunkMapToCDN(
+            commonChunksPair,
+            chunkMap,
+            newChunkMap
+          )
+        }
       }
       // if use dirty check, then check all js files for chunkMap
       // since webpack@4, every js is chunk
@@ -344,16 +361,6 @@ UploadPlugin.prototype.apply = function(compiler) {
 
       // only js here
       const adjustedFiles = [...manifestList]
-      // if provide with src
-      // then use it
-      // or use emitted html files
-      const tplFiles = !srcMut
-        ? htmlArr
-        : resolveList.reduce((last, type) => {
-            const findFileInRoot = gatherFileIn(srcMut)
-            last = last.concat(findFileInRoot(type))
-            return last
-          }, [])
 
       log('uploading js...')
       logLocal && console.log(adjustedFiles)
