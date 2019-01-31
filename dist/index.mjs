@@ -727,7 +727,7 @@ UploadPlugin.prototype.apply = function (compiler) {
   var cdn = beforeUpload(wrappedCdn, beforeUpload$$1);
   compiler.plugin('done', function (stats) {
     try {
-      var _temp3 = _catch(function () {
+      var _temp4 = _catch(function () {
         // wait to handle extra logic
         return Promise.resolve(waitFor()).then(function () {
           var ref = stats.compilation;
@@ -737,7 +737,9 @@ UploadPlugin.prototype.apply = function (compiler) {
           var publicPath = options_output.publicPath; if ( publicPath === void 0 ) publicPath = '';
           var outputPath = options_output.path;
           var options_optimization = options.optimization; if ( options_optimization === void 0 ) options_optimization = {};
-          var minimize = options_optimization.minimize; // early warning
+          var options_optimization$1 = options_optimization;
+          var minimize = options_optimization$1.minimize;
+          var runtimeChunk = options_optimization$1.runtimeChunk; // early warning
 
           if (minimize === true) {
             log('WARNING! Set the optimization.minimize to false to make it works!');
@@ -838,7 +840,15 @@ UploadPlugin.prototype.apply = function (compiler) {
           var cssArr = getExistsAtFromAsset(css);
           var htmlArr = getExistsAtFromAsset(html);
           var chunkArr = getObjValueArray(chunkMap);
-          var commonChunksArr = jsArr.filter(isEntryChunk); // find out which js files are chunk chunk, common chunk, or entry
+          var commonChunksArr = jsArr.filter(isEntryChunk); // if provide with src
+          // then use it
+          // or use emitted html files
+
+          var tplFiles = !srcMut ? htmlArr : resolveList.reduce(function (last, type) {
+            var findFileInRoot = gatherFileIn(srcMut);
+            last = last.concat(findFileInRoot(type));
+            return last;
+          }, []); // find out which js files are chunk chunk, common chunk, or entry
 
           var ref$2 = jsArr.reduce(function (last, js) {
             var isCommonChunk = commonChunksArr.some(function (chunk) { return js.indexOf(chunk) > -1; });
@@ -887,7 +897,7 @@ UploadPlugin.prototype.apply = function (compiler) {
               log('uploading css...');
               logLocal && console.log(cssArr);
               return Promise.resolve(cdn.upload(cssArr)).then(function (cssLocal2CdnObj) {
-                function _temp2() {
+                function _temp3() {
                   // if use dirty check, then check all js files for chunkMap
                   // since webpack@4, every js is chunk
                   // so only filter out common/entry chunks since they should be updated
@@ -895,15 +905,7 @@ UploadPlugin.prototype.apply = function (compiler) {
                   var manifestList = dirtyCheck ? jsArr : jsArr.filter(function (js) { return !commonChunksWAbs.includes(js); });
                   updateScriptSrc(manifestList, newChunkMap); // only js here
 
-                  var adjustedFiles = [].concat( manifestList ); // if provide with src
-                  // then use it
-                  // or use emitted html files
-
-                  var tplFiles = !srcMut ? htmlArr : resolveList.reduce(function (last, type) {
-                    var findFileInRoot = gatherFileIn(srcMut);
-                    last = last.concat(findFileInRoot(type));
-                    return last;
-                  }, []);
+                  var adjustedFiles = [].concat( manifestList );
                   log('uploading js...');
                   logLocal && console.log(adjustedFiles);
                   return Promise.resolve(cdn.upload(adjustedFiles)).then(function (jsLocal2CdnObj) {
@@ -929,20 +931,32 @@ UploadPlugin.prototype.apply = function (compiler) {
                 // then entries can be updated with newChunkMap that has cdn url for common chunks
 
 
-                var commonChunksPair = {};
+                var commonChunksPair = {}; // having runtimeChunk means entry js is likely inlined
+                // therefore template files need to be checked for chunkMap existence
 
-                var _temp = function () {
-                  if (commonChunksWAbs.length) {
-                    updateScriptSrc(commonChunksWAbs, newChunkMap);
-                    log('upload common/entry chunks...');
-                    return Promise.resolve(cdn.upload(commonChunksWAbs)).then(function (_cdn$upload) {
-                      commonChunksPair = _cdn$upload;
-                      newChunkMap = generateChunkMapToCDN(commonChunksPair, chunkMap, newChunkMap);
-                    });
+                var isEntryInline = !!runtimeChunk;
+                var entryTplList = isEntryInline ? tplFiles.filter(isEntryChunk) : [];
+                var entryList = commonChunksWAbs.concat( entryTplList);
+
+                var _temp2 = function () {
+                  if (entryList.length) {
+                    updateScriptSrc(entryList, newChunkMap);
+
+                    var _temp = function () {
+                      if (commonChunksWAbs.length) {
+                        log('upload common/entry chunks...');
+                        return Promise.resolve(cdn.upload(commonChunksWAbs)).then(function (_cdn$upload) {
+                          commonChunksPair = _cdn$upload;
+                          newChunkMap = generateChunkMapToCDN(commonChunksPair, chunkMap, newChunkMap);
+                        });
+                      }
+                    }();
+
+                    if (_temp && _temp.then) { return _temp.then(function () {}); }
                   }
                 }();
 
-                return _temp && _temp.then ? _temp.then(_temp2) : _temp2(_temp);
+                return _temp2 && _temp2.then ? _temp2.then(_temp3) : _temp3(_temp2);
               });
             });
           });
@@ -954,7 +968,7 @@ UploadPlugin.prototype.apply = function (compiler) {
         onError(e);
       });
 
-      return Promise.resolve(_temp3 && _temp3.then ? _temp3.then(function () {}) : void 0);
+      return Promise.resolve(_temp4 && _temp4.then ? _temp4.then(function () {}) : void 0);
     } catch (e) {
       return Promise.reject(e);
     }
