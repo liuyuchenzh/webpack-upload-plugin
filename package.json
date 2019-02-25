@@ -29,7 +29,7 @@
     }
   },
   "lint-staged": {
-    "*.js": [
+    "*.{js,mjs}": [
       "eslint --fix",
       "git add"
     ]
@@ -41,12 +41,12 @@
   },
   "devDependencies": {
     "babel-eslint": "^10.0.1",
-    "eslint": "^5.12.0",
-    "eslint-config-prettier": "^3.3.0",
+    "eslint": "^5.14.1",
+    "eslint-config-prettier": "^4.0.0",
     "eslint-plugin-prettier": "^3.0.1",
     "husky": "^1.3.1",
-    "lint-staged": "^8.1.0",
-    "microbundle": "^0.9.0",
-    "prettier": "^1.15.3"
+    "lint-staged": "^8.1.4",
+    "microbundle": "^0.10.1",
+    "prettier": "^1.16.4"
   }
 }
