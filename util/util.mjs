@@ -117,9 +117,9 @@ function generateLocalPathStr(localPath) {
  */
 function generateLocalPathReg(localPath) {
   const content = generateLocalPathStr(localPath)
-  const prefix = `([(=+]\\s*['"]?)`
+  const prefix = `([(=+,]\\s*['"]?)`
   // using prefix to strictly match resource reference
-  // like src="", url(""), a = ""
+  // like src="", url(""), a = "", srcset="xxx.jpg 100w, xxx@2.jpg 200w"
   return new RegExp(`${prefix}${content}`, 'g')
 }
 
