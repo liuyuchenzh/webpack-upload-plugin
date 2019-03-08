@@ -1,5 +1,7 @@
 # webpack-upload-plugin
 
+[![Greenkeeper badge](https://badges.greenkeeper.io/liuyuchenzh/webpack-upload-plugin.svg)](https://greenkeeper.io/)
+
 ## Intro
 
 This is a plugin for [webpack](https://github.com/webpack/webpack).
