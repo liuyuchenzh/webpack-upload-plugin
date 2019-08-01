@@ -10,6 +10,9 @@
     "build": "microbundle --target node",
     "dev": "microbundle watch --target node"
   },
+  "files": [
+    "dist"
+  ],
   "repository": {
     "type": "git",
     "url": "git+https://github.com/liuyuchenzh/webpack-upload-plugin.git"
