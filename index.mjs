@@ -342,6 +342,7 @@ UploadPlugin.prototype.apply = function(compiler) {
         updateScriptSrc(entryList, newChunkMap)
         if (commonChunksWAbs.length) {
           log('upload common/entry chunks...')
+          logLocal && console.log(commonChunksWAbs)
           commonChunksPair = await cdn.upload(commonChunksWAbs)
           newChunkMap = generateChunkMapToCDN(
             commonChunksPair,
@@ -356,7 +357,9 @@ UploadPlugin.prototype.apply = function(compiler) {
       // and uploaded right above
       const manifestList = dirtyCheck
         ? jsArr
-        : jsArr.filter(js => !commonChunksWAbs.includes(js))
+        : jsArr.filter(
+            js => !commonChunksWAbs.includes(js) && !chunkArrWAbs.includes(js)
+          )
       updateScriptSrc(manifestList, newChunkMap)
 
       // only js here
