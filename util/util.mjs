@@ -6,6 +6,7 @@ import {
   getCssChunksRegExp,
   getCssHrefRegExp,
   getScriptRegExp,
+  getV2ScriptRegExp,
   getPublicPathExp
 } from './regexp.mjs'
 import { isFile, isDir, isType } from './status.mjs'
@@ -256,7 +257,7 @@ function gatherChunks(chunks, chunkFileName) {
  */
 function isEntryChunk(js) {
   const content = read(js)
-  return getScriptRegExp().test(content)
+  return getScriptRegExp().test(content) || getV2ScriptRegExp().test(content)
 }
 
 /**
@@ -282,13 +283,19 @@ function updateScriptSrc(files, chunkCdnMap) {
     const content = read(file)
     let newContent = content
     // update chunkMap
-    if (getScriptRegExp().test(content)) {
-      newContent = newContent.replace(getScriptRegExp(), (match, id) => {
-        if (!id) {
-          return match
+    const isV1ChunkSyntax = getScriptRegExp().test(content)
+    const isV2ChunkSyntax =
+      !isV1ChunkSyntax && getV2ScriptRegExp().test(content)
+    if (isV1ChunkSyntax || isV2ChunkSyntax) {
+      newContent = newContent.replace(
+        isV1ChunkSyntax ? getScriptRegExp() : getV2ScriptRegExp(),
+        (match, id) => {
+          if (!id) {
+            return match
+          }
+          return `${JSON.stringify(chunkCdnMap)}[${id}];`
         }
-        return `${JSON.stringify(chunkCdnMap)}[${id}];`
-      })
+      )
     }
     // update publicPath
     if (getPublicPathExp().test(content)) {
