@@ -383,6 +383,10 @@ Force to copy generated templates from `src` to `dist` even if no cdn Url has be
 
 Try to handle async CSS files emitted by `mini-css-extract-plugin`.
 
+### [`compilerHooks`="done"]: string
+
+Configure when to run the plugin. See [here](https://webpack.js.org/api/compiler-hooks/#hooks)
+
 Viola! That's all : )
 
 ## License
