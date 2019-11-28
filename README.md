@@ -19,10 +19,12 @@ npm i -D webpack-upload-plugin
 ## Notice
 
 - This plugin does not provide a service as uploading to cdn. In fact, it actually depends on such service.
-- This plugin is for webpack >= 2.
+- This plugin is for webpack >= 3.
 - For webpack@4, set `optimization.minimize` to `false`!
 - This plugin _doesn't_ work well with `UglifyJs` plugin! Use `beforeUpload` if you want to compress anyway.
 - Pay extra attention to your `publicPath` field of `webpack.config.js`, `''` is likely the best choice.
+
+> For webpack@2, please use webpack-upload-plugin <= 0.20.0
 
 ## Dependency
 
