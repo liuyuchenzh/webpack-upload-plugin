@@ -8,7 +8,8 @@
   "source": "index.mjs",
   "scripts": {
     "build": "microbundle --target node",
-    "dev": "microbundle watch --target node"
+    "dev": "microbundle watch --target node",
+    "prepublishOnly": "yarn build"
   },
   "files": [
     "dist"
@@ -33,8 +34,7 @@
   },
   "lint-staged": {
     "*.{js,mjs}": [
-      "eslint --fix",
-      "git add"
+      "eslint --fix"
     ]
   },
   "dependencies": {
