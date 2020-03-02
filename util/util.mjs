@@ -72,7 +72,8 @@ function isFilterOutDir(input) {
  */
 const handlePublicPath = publicPath => content => {
   // match strictly
-  const regStr = publicPath
+  const escapedSeparator = `\\${DEFAULT_SEP}`
+  let regStr = publicPath
     .split(DEFAULT_SEP)
     .filter(item => !!item)
     .map(part => {
@@ -86,7 +87,11 @@ const handlePublicPath = publicPath => content => {
       }
       return part
     })
-    .join('\\/')
+    .join(escapedSeparator)
+  // absolute publicPath
+  if (publicPath.startsWith(DEFAULT_SEP)) {
+    regStr = `${escapedSeparator}${regStr}`
+  }
   const refinedRegStr = `([(=]['"]?)${regStr}`
   const reg = new RegExp(refinedRegStr, 'g')
   return content.replace(reg, (_, prefix) => (prefix ? prefix : ''))
