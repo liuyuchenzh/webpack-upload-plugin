@@ -2,7 +2,7 @@ import path from 'path'
 import {
   parallel,
   compatCache,
-  beforeUpload as beforeProcess
+  beforeUpload as beforeProcess,
 } from 'y-upload-utils'
 import {
   resolve,
@@ -24,9 +24,9 @@ import {
   mapSrcToDist,
   getObjValueArray,
   updateCssLoad,
-  updateScriptSrc
-} from './util/util.mjs'
-import { log, logErr } from './util/log.mjs'
+  updateScriptSrc,
+} from './util/util'
+import { log, logErr } from './util/log'
 
 /**
  * @typedef {function(string): string} urlCb
@@ -64,10 +64,10 @@ function UploadPlugin(cdn, option = {}) {
   this.option = option
 }
 
-UploadPlugin.prototype.apply = function(compiler) {
+UploadPlugin.prototype.apply = function (compiler) {
   const self = this
   const {
-    urlCb = input => input,
+    urlCb = (input) => input,
     resolve: resolveList = ['html'],
     src = '',
     dist = src,
@@ -75,7 +75,7 @@ UploadPlugin.prototype.apply = function(compiler) {
     onError = () => {},
     logLocalFiles: logLocal = false,
     staticDir = '',
-    replaceFn = input => input,
+    replaceFn = (input) => input,
     beforeUpload,
     waitFor = () => Promise.resolve(true),
     dirtyCheck = false,
@@ -86,7 +86,7 @@ UploadPlugin.prototype.apply = function(compiler) {
     forceCopyTemplate,
     asyncCSS = true,
     smartAssMode = false,
-    compilerHooks = 'done'
+    compilerHooks = 'done',
   } = this.option
   // get absolute path of src and dist directory
   let srcRoot = resolve(src)
@@ -114,7 +114,7 @@ UploadPlugin.prototype.apply = function(compiler) {
   const rawCdn = {
     upload(files) {
       return self.cdn.upload(files, passToCdn)
-    }
+    },
   }
 
   // log error for cache setup
@@ -130,7 +130,7 @@ UploadPlugin.prototype.apply = function(compiler) {
   const wrappedCdn = enableCache
     ? compatCache(paralleledCdn, {
         passToCdn,
-        cacheLocation
+        cacheLocation,
       })
     : paralleledCdn
 
@@ -140,7 +140,7 @@ UploadPlugin.prototype.apply = function(compiler) {
   // using tap API now
   compiler.hooks[compilerHooks].tapPromise(
     'WebpackUploadPlugin',
-    async compilation => {
+    async (compilation) => {
       compilation =
         compilerHooks === 'done' ? compilation.compilation : compilation
       try {
@@ -149,7 +149,7 @@ UploadPlugin.prototype.apply = function(compiler) {
         const { chunks, options } = compilation
         const {
           output: { publicPath = '', path: outputPath },
-          optimization: { minimize, runtimeChunk } = {}
+          optimization: { minimize, runtimeChunk } = {},
         } = options
         // early warning
         if (minimize === true) {
@@ -179,7 +179,7 @@ UploadPlugin.prototype.apply = function(compiler) {
           // it's tricky to handle js files
           const removePublicPathTypes = [
             '.css',
-            ...resolveList.map(t => `.${t}`)
+            ...resolveList.map((t) => `.${t}`),
           ]
           const toRemove = removePublicPathTypes.includes(type)
           return replaceFn(
@@ -192,7 +192,7 @@ UploadPlugin.prototype.apply = function(compiler) {
         // instead of ones provided by webpack
         // if pass in an array, gather files recursively
         const gatherManualAssets = Array.isArray(staticDirMut)
-          ? type => {
+          ? (type) => {
               return staticDirMut.reduce((last, dir) => {
                 return [...last, ...gatherFileIn(dir)(type)]
               }, [])
@@ -205,8 +205,8 @@ UploadPlugin.prototype.apply = function(compiler) {
                 return files.reduce((fileLast, file) => {
                   return Object.assign(fileLast, {
                     [file]: {
-                      existsAt: file
-                    }
+                      existsAt: file,
+                    },
                   })
                 }, last)
               },
@@ -221,18 +221,22 @@ UploadPlugin.prototype.apply = function(compiler) {
         // classify assets
         const desireAssets = assetsNames.reduce(
           (last, name) => {
-            const assetInfo = assets[name]
-            const location = assetInfo.existsAt
-            if (isImg(location)) {
-              last.img[name] = assetInfo
-            } else if (isCss(location)) {
-              last.css[name] = assetInfo
-            } else if (isJs(location)) {
-              last.js[name] = assetInfo
-            } else if (isFont(location)) {
-              last.font[name] = assetInfo
-            } else if (isTemplate(location)) {
-              last.html[name] = assetInfo
+            try {
+              const assetInfo = assets[name]
+              const location = assetInfo.existsAt
+              if (isImg(location)) {
+                last.img[name] = assetInfo
+              } else if (isCss(location)) {
+                last.css[name] = assetInfo
+              } else if (isJs(location)) {
+                last.js[name] = assetInfo
+              } else if (isFont(location)) {
+                last.font[name] = assetInfo
+              } else if (isTemplate(location)) {
+                last.html[name] = assetInfo
+              }
+            } catch (e) {
+              // ignore
             }
             return last
           },
@@ -241,7 +245,7 @@ UploadPlugin.prototype.apply = function(compiler) {
             css: {},
             js: {},
             font: {},
-            html: {}
+            html: {},
           }
         )
 
@@ -278,10 +282,10 @@ UploadPlugin.prototype.apply = function(compiler) {
         const { notChunkJsArr, chunkArrWAbs, commonChunksWAbs } = jsArr.reduce(
           (last, js) => {
             const isCommonChunk = commonChunksArr.some(
-              chunk => js.indexOf(chunk) > -1
+              (chunk) => js.indexOf(chunk) > -1
             )
             const isChunk =
-              !isCommonChunk && chunkArr.some(chunk => js.indexOf(chunk) > -1)
+              !isCommonChunk && chunkArr.some((chunk) => js.indexOf(chunk) > -1)
             if (isCommonChunk) {
               last.commonChunksWAbs.push(js)
             } else if (isChunk) {
@@ -294,7 +298,7 @@ UploadPlugin.prototype.apply = function(compiler) {
           {
             notChunkJsArr: [],
             chunkArrWAbs: [],
-            commonChunksWAbs: []
+            commonChunksWAbs: [],
           }
         )
 
@@ -304,7 +308,7 @@ UploadPlugin.prototype.apply = function(compiler) {
 
         // upload img/font
         // find img/font in css
-        // replace css
+        // updateScriptSrc css
         // now css ref to img/font with cdn path
         // meanwhile upload chunk files to save time
         log('uploading img and font...')
@@ -314,9 +318,13 @@ UploadPlugin.prototype.apply = function(compiler) {
         // including chunk files
         log('update css/js files with new img and font...')
         const needToUpdateFiles = [...jsArr, ...cssArr]
-        needToUpdateFiles.forEach(location =>
-          simpleReplace(location, location, refinedReplaceFn)(
-            getLocal2CdnObj(imgAndFontPairs)
+        await Promise.all(
+          needToUpdateFiles.map((location) =>
+            simpleReplace(
+              location,
+              location,
+              refinedReplaceFn
+            )(getLocal2CdnObj(imgAndFontPairs))
           )
         )
         // upload chunk files
@@ -348,11 +356,12 @@ UploadPlugin.prototype.apply = function(compiler) {
         const entryTplList = isEntryInline ? tplFiles.filter(isEntryChunk) : []
         const entryList = [...commonChunksWAbs, ...entryTplList]
         if (entryList.length) {
-          updateScriptSrc(entryList, newChunkMap)
+          await updateScriptSrc(entryList, newChunkMap)
           if (commonChunksWAbs.length) {
             log('upload common/entry chunks...')
             logLocal && console.log(commonChunksWAbs)
             commonChunksPair = await cdn.upload(commonChunksWAbs)
+
             newChunkMap = generateChunkMapToCDN(
               commonChunksPair,
               chunkMap,
@@ -367,10 +376,10 @@ UploadPlugin.prototype.apply = function(compiler) {
         const manifestList = dirtyCheck
           ? jsArr
           : jsArr.filter(
-              js => !commonChunksWAbs.includes(js) && !chunkArrWAbs.includes(js)
+              (js) =>
+                !commonChunksWAbs.includes(js) && !chunkArrWAbs.includes(js)
             )
-        updateScriptSrc(manifestList, newChunkMap)
-
+        await updateScriptSrc(manifestList, newChunkMap)
         // only js here
         const adjustedFiles = [...manifestList]
 
@@ -385,14 +394,16 @@ UploadPlugin.prototype.apply = function(compiler) {
           imgAndFontPairs,
           commonChunksPair
         )
-        tplFiles.forEach(filePath => {
-          simpleReplace(
-            filePath,
-            mapSrcToDist(filePath, srcRoot, distRoot),
-            refinedReplaceFn,
-            forceCopyTemplate
-          )(getLocal2CdnObj(allLocal2CdnObj))
-        })
+        await Promise.all(
+          tplFiles.map((filePath) =>
+            simpleReplace(
+              filePath,
+              mapSrcToDist(filePath, srcRoot, distRoot),
+              refinedReplaceFn,
+              forceCopyTemplate
+            )(getLocal2CdnObj(allLocal2CdnObj))
+          )
+        )
         // run onFinish if it is a valid function
         onFinish()
         log('all done')

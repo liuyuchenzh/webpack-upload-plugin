@@ -1,4 +1,4 @@
-import { name as pjName } from './static.mjs'
+import { name as pjName } from './static'
 
 /**
  * log information

@@ -1,41 +1,52 @@
 import path from 'path'
 import fs from 'fs'
 import fse from 'fs-extra'
-import { read, write } from './io.mjs'
+import { promisify } from 'util'
 import {
   getCssChunksRegExp,
   getCssHrefRegExp,
   getScriptRegExp,
   getV2ScriptRegExp,
-  getPublicPathExp
-} from './regexp.mjs'
-import { isFile, isDir, isType } from './status.mjs'
-import { logErr } from './log.mjs'
-import { name as pjName } from './static.mjs'
+} from './regexp'
+import { isDir, isFile, isType } from './status'
+import { logErr } from './log'
+import { name as pjName } from './static'
+import { Worker } from 'worker_threads'
+import { TYPES } from './types'
+import {
+  DEFAULT_SEP,
+  normalize,
+  read,
+  readAsync,
+  write,
+  writeAsync,
+} from './share'
 
-const DEFAULT_SEP = '/'
+const existsAsync = promisify(fs.exists)
+const ensureFileAsync = promisify(fse.ensureFile)
+
 const FILTER_OUT_DIR = ['.idea', '.vscode', '.gitignore', 'node_modules']
 
 // 1. gather html file
 // 2. gather production file
 // 3. upload all production file
 // 4. find the usage of production file in html file
-// 5. if found, replace
+// 5. if found, updateScriptSrc
 
 // type related
 const imgTypeArr = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'ico']
 const fontTypeArr = ['woff', 'woff2', 'ttf', 'oft', 'svg', 'eot']
 const isCss = isType('css')
 const isJs = isType('js')
-const isOneOfType = (types = ['']) => file =>
-  types.some(type => isType(type)(file))
+const isOneOfType = (types = ['']) => (file) =>
+  types.some((type) => isType(type)(file))
 
 function isFont(path) {
-  return fontTypeArr.some(type => isType(type)(path))
+  return fontTypeArr.some((type) => isType(type)(path))
 }
 
 function isImg(path) {
-  return imgTypeArr.some(type => isType(type)(path))
+  return imgTypeArr.some((type) => isType(type)(path))
 }
 
 /**
@@ -45,16 +56,6 @@ function isImg(path) {
  */
 function resolve(...input) {
   return path.resolve(...input)
-}
-
-/**
- * @param {string} input
- * @param {string=} [sep=DEFAULT_SEP]
- * @return {string}
- */
-function normalize(input, sep = DEFAULT_SEP) {
-  const _input = path.normalize(input)
-  return _input.split(path.sep).join(sep)
 }
 
 /**
@@ -70,18 +71,18 @@ function isFilterOutDir(input) {
  * @param {string} publicPath
  * @return {function(string): string}
  */
-const handlePublicPath = publicPath => content => {
+const handlePublicPath = (publicPath) => (content) => {
   // match strictly
   const escapedSeparator = `\\${DEFAULT_SEP}`
   let regStr = publicPath
     .split(DEFAULT_SEP)
-    .filter(item => !!item)
-    .map(part => {
+    .filter((item) => !!item)
+    .map((part) => {
       if (/\./.test(part)) {
-        return part.replace(/\.+/g, match =>
+        return part.replace(/\.+/g, (match) =>
           match
             .split('')
-            .map(dot => '\\' + dot)
+            .map((dot) => '\\' + dot)
             .join('')
         )
       }
@@ -90,49 +91,41 @@ const handlePublicPath = publicPath => content => {
     .join(escapedSeparator)
   // absolute publicPath
   if (publicPath.startsWith(DEFAULT_SEP)) {
-    regStr = `${escapedSeparator}${regStr}`
+    let prefix = ''
+    const publicPathArray = publicPath.split('')
+    while (publicPathArray.length) {
+      const char = publicPathArray.shift()
+      if (char === DEFAULT_SEP) {
+        prefix += escapedSeparator
+      } else {
+        break
+      }
+    }
+    regStr = `${prefix}${regStr}`
+  }
+  // avoid matching url in form of `//path/to/resource`
+  // aka url which drop the protocol part
+  if (publicPath.endsWith(DEFAULT_SEP)) {
+    regStr += '([^/])'
   }
   const refinedRegStr = `([(=]['"]?)${regStr}`
   const reg = new RegExp(refinedRegStr, 'g')
-  return content.replace(reg, (_, prefix) => (prefix ? prefix : ''))
-}
-
-/**
- * given localPath, return string to form matching RegExp
- * @param {string} localPath
- * @returns {string}
- */
-function generateLocalPathStr(localPath) {
-  const pathArr = localPath.split(DEFAULT_SEP)
-  const len = pathArr.length
-  return pathArr
-    .map((part, index) => {
-      if (index === len - 1) {
-        return `${part}`
-      } else {
-        return `\\.?(${part})?`
-      }
-    })
-    .join(`\\${DEFAULT_SEP}?`)
-}
-
-/**
- * produce RegExp to match local path
- * @param {string} localPath
- * @return {RegExp}
- */
-function generateLocalPathReg(localPath) {
-  const content = generateLocalPathStr(localPath)
-  const prefix = `([(=+,\\n\\t]\\s*['"]?)`
-  // using prefix to strictly match resource reference
-  // like src="", url(""), a = "", srcset="xxx.jpg 100w, xxx@2.jpg 200w"
-  return new RegExp(`${prefix}${content}`, 'g')
+  return content.replace(reg, (_, prefix, suffix) => {
+    let result = ''
+    if (prefix) {
+      result = `${prefix}${result}`
+    }
+    if (suffix) {
+      result += suffix
+    }
+    return result
+  })
 }
 
 /**
  * find file usage
  * 1. make sure the range: srcPath
- * 2. provide inline path to search and to replace with: localCdnPair
+ * 2. provide inline path to search and to updateScriptSrc with: localCdnPair
  * @param {string} srcPath
  * @param {string=} distPath
  * @param {function=} replaceFn
@@ -142,28 +135,44 @@ function generateLocalPathReg(localPath) {
 function simpleReplace(
   srcPath,
   distPath = srcPath,
-  replaceFn = input => input,
+  replaceFn = (input) => input,
   copyWhenUntouched = true
 ) {
-  const srcFile = read(srcPath)
-  return function savePair(localCdnPair) {
-    const ret = localCdnPair.reduce((last, file) => {
-      const localPath = normalize(file[0])
-      const cdnPath = file[1]
-      const localPathReg = generateLocalPathReg(localPath)
-      last = replaceFn(last, srcPath).replace(
-        localPathReg,
-        (_, prefix) => `${prefix}${cdnPath}`
-      )
-      return last
-    }, srcFile)
-    // no such path > force copy > content change
-    const toCopy =
-      !fs.existsSync(distPath) || copyWhenUntouched || ret !== srcFile
-    if (toCopy) {
-      fse.ensureFileSync(distPath)
-      write(distPath)(ret)
-    }
+  const srcFilePromise = readAsync(srcPath)
+  return async function savePair(localCdnPair) {
+    const worker = new Worker(
+      path.resolve(__dirname, 'worker/replace/index.js'),
+      {
+        workerData: {
+          srcPath,
+          localCdnPair,
+        },
+      }
+    )
+    return new Promise((resolve, reject) => {
+      worker.on('message', async ({ type, content }) => {
+        if (type !== TYPES.replaceContent) {
+          return
+        }
+        try {
+          const replacedContent = replaceFn(content, srcPath)
+          // no such path > force copy > content change
+          const isFileInDist = await existsAsync(distPath)
+          const srcFile = await srcFilePromise
+          const toCopy =
+            !isFileInDist || copyWhenUntouched || replacedContent !== srcFile
+          if (toCopy) {
+            await ensureFileAsync(distPath)
+            fse.ensureFileSync(distPath)
+            await writeAsync(distPath)(replacedContent)
+            resolve()
+          }
+        } catch (e) {
+          reject(e)
+        }
+      })
+      worker.on('error', reject)
+    })
   }
 }
 
@@ -195,12 +204,12 @@ function gatherFileIn(src) {
  * @param {function(string): string} cb
  * @return {function(string[]|{[string]:string}):[string, string][]}
  */
-const handleCdnRes = cb => entries => {
+const handleCdnRes = (cb) => (entries) => {
   if (typeof cb !== 'function') return logErr(`urlCb is not function`)
   const isArr = Array.isArray(entries)
   // if not array, handle as {[localLocation]: [cdnUrl]}
   const target = isArr ? entries : Object.entries(entries)
-  return target.map(pair => {
+  return target.map((pair) => {
     // pair[1] should be cdn url
     // pass local path as well
     pair[1] = cb(pair[1], pair[0])
@@ -235,7 +244,7 @@ function gatherChunks(chunks, chunkFileName) {
     }
     const { id, name, renderedHash, contentHash } = chunk
     // handle slice properly
-    const handleLen = source => (match, len) => {
+    const handleLen = (source) => (match, len) => {
       if (len) {
         return source.slice(0, +len.slice(1))
       }
@@ -280,36 +289,37 @@ function getObjValueArray(obj) {
  * @param {string[]} files
  * @param {{id: string}} chunkCdnMap
  */
-function updateScriptSrc(files, chunkCdnMap) {
+async function updateScriptSrc(files, chunkCdnMap) {
   // if no new map was formed, then keep the way it is
   const len = Object.keys(chunkCdnMap).length
   if (!len) return
-  files.forEach(file => {
-    const content = read(file)
-    let newContent = content
-    // update chunkMap
-    const isV1ChunkSyntax = getScriptRegExp().test(content)
-    const isV2ChunkSyntax =
-      !isV1ChunkSyntax && getV2ScriptRegExp().test(content)
-    if (isV1ChunkSyntax || isV2ChunkSyntax) {
-      newContent = newContent.replace(
-        isV1ChunkSyntax ? getScriptRegExp() : getV2ScriptRegExp(),
-        (match, id) => {
-          if (!id) {
-            return match
+
+  return new Promise((resolve, reject) => {
+    let count = files.length
+    if (count === 0) {
+      resolve()
+    }
+    Promise.all(
+      files.map((file) => {
+        const worker = new Worker(
+          path.resolve(__dirname, 'worker/updateScriptSrc/index.js'),
+          {
+            workerData: { type: TYPES.updateScriptSrc, file, chunkCdnMap },
           }
-          return `${JSON.stringify(chunkCdnMap)}[${id}];`
-        }
-      )
-    }
-    // update publicPath
-    if (getPublicPathExp().test(content)) {
-      newContent = newContent.replace(
-        getPublicPathExp(),
-        `__webpack_require__.p = "";`
-      )
-    }
-    write(file)(newContent)
+        )
+        worker.on('message', async ({ type, content, file }) => {
+          if (type !== TYPES.updateScriptSrc) {
+            return
+          }
+          writeAsync(file)(content).then(() => {
+            if (--count === 0) {
+              resolve()
+            }
+          }, reject)
+        })
+        worker.on('error', reject)
+      })
+    )
   })
 }
 
@@ -321,13 +331,13 @@ function updateScriptSrc(files, chunkCdnMap) {
  */
 function updateCssLoad(chunkFiles, cssMap, publicPath) {
   const keys = cssMap.map(([local]) => local)
-  chunkFiles.forEach(file => {
+  chunkFiles.forEach((file) => {
     const content = read(file)
     let newContent = content
     const match = content.match(getCssChunksRegExp())
     if (match) {
       const [, map] = match
-      newContent = newContent.replace(getCssHrefRegExp(), hrefMatch => {
+      newContent = newContent.replace(getCssHrefRegExp(), (hrefMatch) => {
         // get the new cssMap with {chunkId, href} structure
         // where chunkId is the id for the css file, and href is the cdn url
         const fnBody = `
@@ -342,7 +352,7 @@ function updateCssLoad(chunkFiles, cssMap, publicPath) {
         // convert to {[chunkId]: href} structure
         const cssChunkIdCdnMap = hrefArr.reduce(
           (last, { chunkId, href, rawHref }) => {
-            const localIndex = keys.findIndex(key => key.indexOf(href) > -1)
+            const localIndex = keys.findIndex((key) => key.indexOf(href) > -1)
             if (localIndex < 0) {
               // use the original href when not found from cdn result
               // since __webpack_require__.p will be set to ""
@@ -377,7 +387,7 @@ function updateCssLoad(chunkFiles, cssMap, publicPath) {
  */
 function getIdForChunk(chunkAbsPath, chunkMap) {
   return Object.keys(chunkMap).find(
-    key => chunkAbsPath.indexOf(chunkMap[key]) > -1
+    (key) => chunkAbsPath.indexOf(chunkMap[key]) > -1
   )
 }
 
@@ -387,7 +397,7 @@ function getIdForChunk(chunkAbsPath, chunkMap) {
  * @returns {string[]}
  */
 function getExistsAtFromAsset(asset) {
-  return Object.keys(asset).map(name => {
+  return Object.keys(asset).map((name) => {
     const info = asset[name]
     return info.existsAt
   })
@@ -413,5 +423,5 @@ export {
   isOneOfType,
   imgTypeArr,
   fontTypeArr,
-  getExistsAtFromAsset
+  getExistsAtFromAsset,
 }

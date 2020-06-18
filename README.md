@@ -8,7 +8,7 @@ The main aim is to provide a tool to upload js/css/img/font used in html (or tem
 
 ## Environment requirement
 
-node >= 7.4.0
+node >= 10.5.0
 
 ## Install
 
@@ -50,13 +50,13 @@ Here is a sudo implementation of `cdn` in vanilla javascript.
  */
 function upload(localPaths) {
   return Promise.all(
-    localPaths.map(localPath => {
+    localPaths.map((localPath) => {
       return Promise.resolve({
-        [localPath]: 'cdn_url_for_this_file'
+        [localPath]: 'cdn_url_for_this_file',
       })
     })
   ).then(
-    pairs =>
+    (pairs) =>
       pairs.reduce((last, pair) => {
         return Object.assign(last, pair)
       }, {}),
@@ -64,7 +64,7 @@ function upload(localPaths) {
   )
 }
 const cdn = {
-  upload
+  upload,
 }
 ```
 
@@ -98,42 +98,42 @@ module.exports = {
   output: {
     path: path.resolve(__dirname, 'dist'),
     filename: 'bundle.js',
-    publicPath: ''
+    publicPath: '',
   },
   module: {
     rules: [
       {
         test: /\.js$/,
-        loader: 'babel-loader'
+        loader: 'babel-loader',
       },
       {
         test: /\.css$/,
-        use: [MiniCssExtractPlugin.loader, 'css-loader']
+        use: [MiniCssExtractPlugin.loader, 'css-loader'],
       },
       {
         test: /\.(png|jpe?g|gif|svg)(\?.*)?$/,
         loader: 'url-loader',
         options: {
-          limit: 10000
-        }
-      }
-    ]
+          limit: 10000,
+        },
+      },
+    ],
   },
   optimization: {
-    minimize: false // important! important! important!
+    minimize: false, // important! important! important!
   },
   plugins: [
     new MiniCssExtractPlugin({
       filename: '[name].css',
-      chunkFilename: '[id].css'
+      chunkFilename: '[id].css',
     }),
     new HtmlWebpackPlugin({
       filename: 'index.html',
       template: 'index.html',
-      inject: true
+      inject: true,
     }),
-    new UploadPlugin(cdn)
-  ]
+    new UploadPlugin(cdn),
+  ],
 }
 ```
 
@@ -168,8 +168,8 @@ Public can only access files from `project/public`
       src: path.resolve(__dirname, '..', 'project/src'),
       dist: path.resolve(__dirname, '..', 'project/public'),
       staticDir: path.resolve(__dirname, '..', 'project/src'),
-      dirtyCheck: true
-    })
+      dirtyCheck: true,
+    }),
   ]
 }
 ```
@@ -184,7 +184,7 @@ const config = {
     return path.extname(location) === '.html'
       ? content.replace(prefix, '')
       : content
-  }
+  },
 }
 ```
 
@@ -198,7 +198,7 @@ In webpack.config.js
 const WebpackUploadPlugin = require('webpack-upload-plugin')
 const cdn = require('some-cdn-package')
 module.exports = {
-  plugins: [new WebpackUploadPlugin(cdn, option)]
+  plugins: [new WebpackUploadPlugin(cdn, option)],
 }
 ```
 
@@ -244,7 +244,7 @@ Adjust cdn url accordingly. Cdn url would be passed in, and you need to return a
 
 ```js
 const url = 'http://domain.com/cdn/bundle.js'
-const urlCb = input => input.replace(/^https?/, 'https')
+const urlCb = (input) => input.replace(/^https?/, 'https')
 ```
 
 ### [`resolve`]: string[]
@@ -318,7 +318,7 @@ A function that returns a Promise. The plugin will wait for the Promise to resol
 
 ```js
 // things won't start till 1000ms later
-const waitFor = new Promise(resolve => {
+const waitFor = new Promise((resolve) => {
   setTimeout(resolve, 1000)
 })
 ```
@@ -353,7 +353,7 @@ Extra config to pass to `cdn.upload` method. Something Like `cdn.upload(location
 // if your original cdn package has API like this
 const cdn = require('some-cdn-package')
 const passToCdn = {
-  https: true
+  https: true,
 }
 cdn.upload(files, passToCdn)
 ```
