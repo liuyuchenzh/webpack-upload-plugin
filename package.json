@@ -35,17 +35,17 @@
     ]
   },
   "dependencies": {
-    "@babel/core": "^7.9.6",
-    "@babel/preset-react": "^7.9.4",
-    "babel-loader": "^8.1.0",
     "esm": "^3.2.25",
     "fs-extra": "^9.0.0",
     "md5": "^2.2.1",
     "y-upload-utils": "^1.5.0"
   },
   "devDependencies": {
+    "@babel/core": "^7.9.6",
+    "@babel/preset-react": "^7.9.4",
     "@types/webpack": "4.41.6",
     "babel-eslint": "10.0.3",
+    "babel-loader": "^8.1.0",
     "clean-webpack-plugin": "^3.0.0",
     "css-loader": "^3.5.3",
     "eslint": "7.0.0",
