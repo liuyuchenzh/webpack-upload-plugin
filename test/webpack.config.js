@@ -1,5 +1,5 @@
 // in webpack.config.js
-const { default: UploadPlugin } = require('../index')
+const UploadPlugin = require('../index')
 
 const path = require('path')
 const HtmlWebpackPlugin = require('html-webpack-plugin')

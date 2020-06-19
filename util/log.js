@@ -1,10 +1,10 @@
-import { name as pjName } from './static'
+const { name: pjName } = require('./static')
 
 /**
  * log information
  * @param {*} msg
  */
-export function log(msg) {
+function log(msg) {
   console.log(`[${pjName}]: ${msg}`)
 }
 
@@ -12,6 +12,11 @@ export function log(msg) {
  * log error
  * @param msg
  */
-export function logErr(msg) {
+function logErr(msg) {
   console.error(`[${pjName}]: ${msg}`)
+}
+
+module.exports = {
+  log,
+  logErr,
 }

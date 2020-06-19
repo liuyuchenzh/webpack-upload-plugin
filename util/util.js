@@ -1,26 +1,26 @@
-import path from 'path'
-import fs from 'fs'
-import fse from 'fs-extra'
-import { promisify } from 'util'
-import {
+const path = require('path')
+const fs = require('fs')
+const fse = require('fs-extra')
+const { promisify } = require('util')
+const {
   getCssChunksRegExp,
   getCssHrefRegExp,
   getScriptRegExp,
   getV2ScriptRegExp,
-} from './regexp'
-import { isDir, isFile, isType } from './status'
-import { logErr } from './log'
-import { name as pjName } from './static'
-import { Worker } from 'worker_threads'
-import { TYPES } from './types'
-import {
+} = require('./regexp')
+const { isDir, isFile, isType } = require('./status')
+const { logErr } = require('./log')
+const { name: pjName } = require('./static')
+const { Worker } = require('worker_threads')
+const { TYPES } = require('./types')
+const {
   DEFAULT_SEP,
   normalize,
   read,
   readAsync,
   write,
   writeAsync,
-} from './share'
+} = require('./share')
 
 const existsAsync = promisify(fs.exists)
 const ensureFileAsync = promisify(fse.ensureFile)
@@ -403,7 +403,7 @@ function getExistsAtFromAsset(asset) {
   })
 }
 
-export {
+module.exports = {
   resolve,
   simpleReplace,
   handlePublicPath,

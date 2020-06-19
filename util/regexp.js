@@ -1,8 +1,7 @@
-export const getPublicPathExp = () =>
-  /__webpack_require__\.p\s?=\s?([^;\n]+);?/g
-export const getV2ScriptRegExp = () =>
+exports.getPublicPathExp = () => /__webpack_require__\.p\s?=\s?([^;\n]+);?/g
+exports.getV2ScriptRegExp = () =>
   /__webpack_require__\.p\s?\+[^\n]*?(chunkId)[^\n]*?\.js['"];?/g
-export const getScriptRegExp = () =>
+exports.getScriptRegExp = () =>
   /__webpack_require__\.p\s?\+[^[]+\[(\S+)][^\n]+?\.js['"];?/g
-export const getCssChunksRegExp = () => /var\scssChunks\s*=\s*([^;\n]+);?/
-export const getCssHrefRegExp = () => /var\shref\s*=[^\n]+?chunkId[^\n;]+;?/
+exports.getCssChunksRegExp = () => /var\scssChunks\s*=\s*([^;\n]+);?/
+exports.getCssHrefRegExp = () => /var\shref\s*=[^\n]+?chunkId[^\n;]+;?/

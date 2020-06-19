@@ -1,1 +1,1 @@
-export const name = 'webpack-upload-plugin'
+exports.name = 'webpack-upload-plugin'

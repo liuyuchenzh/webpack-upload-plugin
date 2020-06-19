@@ -1,14 +1,14 @@
-import path from 'path'
-import { readFile, readFileSync, writeFile, writeFileSync } from 'fs'
+const path = require('path')
+const { readFile, readFileSync, writeFile, writeFileSync } = require('fs')
 
-export const DEFAULT_SEP = '/'
+const DEFAULT_SEP = '/'
 
 /**
  * @param {string} input
  * @param {string=} [sep=DEFAULT_SEP]
  * @return {string}
  */
-export function normalize(input, sep = DEFAULT_SEP) {
+function normalize(input, sep = DEFAULT_SEP) {
   const _input = path.normalize(input)
   return _input.split(path.sep).join(sep)
 }
@@ -48,7 +48,7 @@ function escapeDot(input) {
  * @param {string} localPath
  * @return {RegExp}
  */
-export function generateLocalPathReg(localPath) {
+function generateLocalPathReg(localPath) {
   const content = generateLocalPathStr(localPath)
   const prefix = `([(=+,\\n\\t]\\s*['"]?)`
   // using prefix to strictly match resource reference
@@ -57,10 +57,10 @@ export function generateLocalPathReg(localPath) {
 }
 
 // read file
-export const read = (location) => readFileSync(location, 'utf-8')
+const read = (location) => readFileSync(location, 'utf-8')
 // write file
-export const write = (location) => (content) => writeFileSync(location, content)
-export const readAsync = (location) =>
+const write = (location) => (content) => writeFileSync(location, content)
+const readAsync = (location) =>
   new Promise((resolve, reject) => {
     readFile(location, 'utf-8', (err, data) => {
       if (err) {
@@ -69,7 +69,7 @@ export const readAsync = (location) =>
       resolve(data)
     })
   })
-export const writeAsync = (location) => async (content) =>
+const writeAsync = (location) => async (content) =>
   new Promise((resolve, reject) => {
     writeFile(location, content, (err) => {
       if (err) {
@@ -78,3 +78,13 @@ export const writeAsync = (location) => async (content) =>
       resolve()
     })
   })
+
+module.exports = {
+  DEFAULT_SEP,
+  normalize,
+  generateLocalPathReg,
+  read,
+  write,
+  readAsync,
+  writeAsync,
+}
