@@ -39,7 +39,7 @@
     "y-upload-utils": "^1.5.0"
   },
   "devDependencies": {
-    "@babel/core": "7.9.6",
+    "@babel/core": "7.11.1",
     "@babel/preset-react": "7.9.4",
     "@types/webpack": "4.41.6",
     "babel-eslint": "10.0.3",
