@@ -261,7 +261,7 @@ If static files (js/css/images etc) emitted by webpack is not what you want, or 
 
 > Use _absolute_ path
 
-### [`beforeUpload`]: (fileContent: string, fileLocation: string) => string
+### [`beforeUpload`]: (fileContent: string, fileLocation: string) => Promise<string> | string
 
 _Compression_ can be done here. Two arguments are `fileContent` and `fileLocation` (with extension name of course). You need to return the compression result as string.
 
