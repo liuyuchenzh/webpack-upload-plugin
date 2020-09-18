@@ -115,7 +115,8 @@ const handlePublicPath = (publicPath) => (content) => {
     if (prefix) {
       result = `${prefix}${result}`
     }
-    if (suffix) {
+    // suffix possibly is offset , assertion type
+    if (suffix && typeof suffix !== 'number') {
       result += suffix
     }
     return result
