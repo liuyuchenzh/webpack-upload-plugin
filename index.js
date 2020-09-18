@@ -339,7 +339,9 @@ UploadPlugin.prototype.apply = function (compiler) {
         // handle async css files
         if (asyncCSS) {
           updateCssLoad(
-            commonChunksWAbs,
+            // All js files need replace
+            // May appear in html , So tplFiles also needs
+            [...tplFiles, ...jsArr],
             getLocal2CdnObj(cssLocal2CdnObj),
             publicPath
           )
