@@ -377,10 +377,7 @@ UploadPlugin.prototype.apply = function (compiler) {
         // and uploaded right above
         const manifestList = dirtyCheck
           ? jsArr
-          : jsArr.filter(
-              (js) =>
-                !commonChunksWAbs.includes(js) && !chunkArrWAbs.includes(js)
-            )
+          : jsArr.filter((js) => !commonChunksWAbs.includes(js))
         await updateScriptSrc(manifestList, newChunkMap)
         // only js here
         const adjustedFiles = [...manifestList]
