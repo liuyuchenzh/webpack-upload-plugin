@@ -2,6 +2,7 @@ const { workerData, parentPort } = require('worker_threads')
 const {
   getScriptRegExp,
   getV2ScriptRegExp,
+  getV3ScriptRegExp,
   getPublicPathExp,
 } = require('../../regexp')
 const { TYPES } = require('../../types')
@@ -27,10 +28,16 @@ async function updateScriptSrc(file, chunkCdnMap) {
   // update chunkMap
   const isV1ChunkSyntax = getScriptRegExp().test(content)
   const isV2ChunkSyntax = !isV1ChunkSyntax && getV2ScriptRegExp().test(content)
-  if (isV1ChunkSyntax || isV2ChunkSyntax) {
-    let regExp = getV2ScriptRegExp()
-    if (isV1ChunkSyntax && !isV2ChunkSyntax) {
+  const isV3ChunkSyntax =
+    !isV1ChunkSyntax && !isV2ChunkSyntax && getV3ScriptRegExp().test(content)
+  if (isV1ChunkSyntax || isV2ChunkSyntax || isV3ChunkSyntax) {
+    let regExp
+    if (isV1ChunkSyntax) {
       regExp = getScriptRegExp()
+    } else if (isV2ChunkSyntax) {
+      regExp = getV2ScriptRegExp()
+    } else if (isV3ChunkSyntax) {
+      regExp = getV3ScriptRegExp()
     }
     newContent = newContent.replace(regExp, (match, id) => {
       if (!id) {
