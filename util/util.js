@@ -237,6 +237,10 @@ function mapSrcToDist(srcFilePath, srcRoot, distRoot) {
  * @param {string} chunkFileName
  */
 function gatherChunks(chunks, chunkFileName) {
+  // for webpack5 , see https://webpack.js.org/blog/2020-10-10-webpack-5-release/#arrays-to-sets
+  if (Object.prototype.toString.call(chunks) === '[object Set]') {
+    chunks = Array.from(chunks)
+  }
   return chunks.reduce((last, chunk) => {
     if (/\[hash(:\d+)?]/.test(chunkFileName)) {
       throw new Error(
