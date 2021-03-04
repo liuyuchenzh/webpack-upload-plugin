@@ -7,6 +7,7 @@ const {
   getCssHrefRegExp,
   getScriptRegExp,
   getV2ScriptRegExp,
+  getV3ScriptRegExp,
 } = require('./regexp')
 const { isDir, isFile, isType } = require('./status')
 const { logErr } = require('./log')
@@ -276,7 +277,11 @@ function gatherChunks(chunks, chunkFileName) {
  */
 function isEntryChunk(js) {
   const content = read(js)
-  return getScriptRegExp().test(content) || getV2ScriptRegExp().test(content)
+  return (
+    getScriptRegExp().test(content) ||
+    getV2ScriptRegExp().test(content) ||
+    getV3ScriptRegExp().test(content)
+  )
 }
 
 /**
