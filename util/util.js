@@ -8,6 +8,7 @@ const {
   getScriptRegExp,
   getV2ScriptRegExp,
   getV3ScriptRegExp,
+  getMiniCssMapRegExp,
 } = require('./regexp')
 const { isDir, isFile, isType } = require('./status')
 const { logErr } = require('./log')
@@ -345,11 +346,23 @@ function updateCssLoad(chunkFiles, cssMap, publicPath) {
     const content = read(file)
     let newContent = content
     const match = content.match(getCssChunksRegExp())
+
+    // mock __webpack_require__
+    let webpackRequireMock = 'var __webpack_require__ = {};'
+    const miniCssMatch = content.match(getMiniCssMapRegExp())
+    if (miniCssMatch) {
+      webpackRequireMock += `
+      ${miniCssMatch[0]};
+      `
+    }
     if (match) {
       const [, map] = match
       newContent = newContent.replace(getCssHrefRegExp(), (hrefMatch) => {
         // get the new cssMap with {chunkId, href} structure
         // where chunkId is the id for the css file, and href is the cdn url
+        if (hrefMatch.includes('__webpack_require__')) {
+          hrefMatch = webpackRequireMock + hrefMatch
+        }
         const fnBody = `
             const map = ${map};
             return Object.keys(map).map(chunkId => {

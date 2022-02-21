@@ -7,3 +7,5 @@ exports.getScriptRegExp = () =>
   /__webpack_require__\.p\s?\+[^[]+\[(\S+)][^\n]+?\.js['"];?/g
 exports.getCssChunksRegExp = () => /var\scssChunks\s*=\s*([^;\n]+);?/
 exports.getCssHrefRegExp = () => /var\shref\s*=[^\n]+?chunkId[^\n;]+;?/
+exports.getMiniCssMapRegExp = () =>
+  /__webpack_require__\.miniCssF = function\(chunkId\) {(.*?)};/gs
