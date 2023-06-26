@@ -408,11 +408,12 @@ function updateCssLoad(chunkFiles, cssMap, publicPath) {
  * @param {{id: string}} chunkMap
  * @returns {string|number}
  */
-function getIdForChunk(chunkAbsPath, chunkMap) {
+ function getIdForChunk(chunkAbsPath, chunkMap) {
   return Object.keys(chunkMap).find(
     (key) => chunkAbsPath.indexOf(chunkMap[key]) > -1
   )
 }
+
 
 /**
  * make assets object to array with local path

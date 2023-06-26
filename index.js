@@ -222,18 +222,21 @@ UploadPlugin.prototype.apply = function (compiler) {
         const desireAssets = assetsNames.reduce(
           (last, name) => {
             try {
-              const assetInfo = assets[name]
-              const location = assetInfo.existsAt
+              // webpack 5中移除了.existsAt方法，所以使用compilation.getPath来获取asset的绝对路径；
+              const location = path.resolve(
+                outputPath,
+                compilation.getPath(name, { relative: false })
+              )
               if (isImg(location)) {
-                last.img[name] = assetInfo
+                last.imgArr.push(location)
               } else if (isCss(location)) {
-                last.css[name] = assetInfo
+                last.cssArr.push(location)
               } else if (isJs(location)) {
-                last.js[name] = assetInfo
+                last.jsArr.push(location)
               } else if (isFont(location)) {
-                last.font[name] = assetInfo
+                last.fontArr.push(location)
               } else if (isTemplate(location)) {
-                last.html[name] = assetInfo
+                last.htmlArr.push(location)
               }
             } catch (e) {
               // ignore
@@ -241,30 +244,14 @@ UploadPlugin.prototype.apply = function (compiler) {
             return last
           },
           {
-            img: {},
-            css: {},
-            js: {},
-            font: {},
-            html: {},
+            imgArr: [],
+            cssArr: [],
+            jsArr: [],
+            fontArr: [],
+            htmlArr: [],
           }
         )
-
-        const { img, css, js, font, html } = desireAssets
-
-        // warning if no template found but staticDirMut set
-        if (staticDirMut && !Object.keys(html).length && !src) {
-          log('WARNING!')
-          log(
-            "staticDir is set but haven't found any template files in those directories"
-          )
-          log('Try to use src filed to include your template files')
-        }
-
-        const imgArr = getExistsAtFromAsset(img)
-        const fontArr = getExistsAtFromAsset(font)
-        const jsArr = getExistsAtFromAsset(js)
-        const cssArr = getExistsAtFromAsset(css)
-        const htmlArr = getExistsAtFromAsset(html)
+        const { imgArr, cssArr, jsArr, fontArr, htmlArr } = desireAssets
         const chunkArr = getObjValueArray(chunkMap)
         const commonChunksArr = jsArr.filter(isEntryChunk)
         // if provide with src
